@@ -7,20 +7,27 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Face
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -28,6 +35,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.example.tomabooks.ui.theme.TomaBooksTheme
+import java.util.Locale
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -72,27 +80,123 @@ fun MainScreen(viewModel: MainViewModel, onNavigateToSettings: () -> Unit) {
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
-                .padding(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
+                .padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text(
-                text = uiState.currentBook?.name ?: "No book selected",
-                style = MaterialTheme.typography.headlineMedium,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
-            )
-            
+            // Artwork / Cover Image
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .aspectRatio(1f)
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant),
+                contentAlignment = Alignment.Center
+            ) {
+                if (uiState.artwork != null) {
+                    Image(
+                        bitmap = uiState.artwork!!.asImageBitmap(),
+                        contentDescription = "Book Cover",
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop
+                    )
+                } else {
+                    Icon(
+                        imageVector = Icons.Default.Face,
+                        contentDescription = null,
+                        modifier = Modifier.size(100.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
             Spacer(modifier = Modifier.height(32.dp))
-            
+
+            // Book Title (Metadata)
+            Text(
+                text = uiState.bookTitle ?: if (uiState.currentBook != null) "Loading metadata..." else "No book selected",
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Bold,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                textAlign = TextAlign.Center
+            )
+
+            // Author (Metadata)
+            if (!uiState.author.isNullOrEmpty()) {
+                Text(
+                    text = uiState.author!!,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.secondary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(top = 4.dp)
+                )
+            }
+
+            // Chapter Title (Metadata)
+            if (!uiState.chapterTitle.isNullOrEmpty()) {
+                Text(
+                    text = uiState.chapterTitle!!,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.tertiary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(top = 12.dp)
+                )
+            }
+
+            Spacer(modifier = Modifier.weight(1f))
+
+            // Progress Section
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Slider(
+                    value = uiState.currentPosition.toFloat(),
+                    onValueChange = { viewModel.seekTo(it.toLong()) },
+                    valueRange = 0f..(uiState.duration.coerceAtLeast(1L).toFloat()),
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = formatTime(uiState.currentPosition),
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                    Text(
+                        text = formatTime(uiState.duration),
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // Play/Pause Control
             Button(
                 onClick = { viewModel.playPause() },
-                modifier = Modifier.size(150.dp, 60.dp),
-                shape = MaterialTheme.shapes.medium
+                modifier = Modifier.size(width = 120.dp, height = 56.dp),
+                shape = RoundedCornerShape(28.dp)
             ) {
-                Text(if (uiState.isPlaying) "Stop" else "Play")
+                Text(if (uiState.isPlaying) "Pause" else "Play")
             }
+            
+            Spacer(modifier = Modifier.height(32.dp))
         }
+    }
+}
+
+fun formatTime(ms: Long): String {
+    val totalSeconds = ms / 1000
+    val hours = totalSeconds / 3600
+    val minutes = (totalSeconds % 3600) / 60
+    val seconds = totalSeconds % 60
+    return if (hours > 0) {
+        String.format(Locale.getDefault(), "%02d:%02d:%02d", hours, minutes, seconds)
+    } else {
+        String.format(Locale.getDefault(), "%02d:%02d", minutes, seconds)
     }
 }
 
@@ -173,7 +277,28 @@ fun SettingsScreen(viewModel: MainViewModel, onBack: () -> Unit) {
                     }
                     items(uiState.books) { book ->
                         ListItem(
-                            headlineContent = { Text(book.name) },
+                            headlineContent = { 
+                                Text(
+                                    text = book.title ?: book.name,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                ) 
+                            },
+                            supportingContent = {
+                                if (!book.author.isNullOrEmpty()) {
+                                    Text(
+                                        text = book.author!!,
+                                        style = MaterialTheme.typography.bodySmall
+                                    )
+                                }
+                            },
+                            leadingContent = {
+                                Icon(
+                                    imageVector = Icons.Default.Face,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                            },
                             trailingContent = {
                                 IconButton(onClick = { viewModel.removeBook(book) }) {
                                     Icon(Icons.Default.Delete, contentDescription = "Remove from list")

@@ -52,6 +52,7 @@ dependencies {
     implementation(libs.androidx.media3.ui)
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.androidx.documentfile)
+    implementation(libs.androidx.arcore)
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
