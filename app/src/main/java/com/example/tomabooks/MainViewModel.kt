@@ -1,0 +1,235 @@
+package com.example.tomabooks
+
+import android.app.Application
+import android.content.Intent
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.net.Uri
+import androidx.documentfile.provider.DocumentFile
+import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.viewModelScope
+import androidx.media3.common.MediaItem
+import androidx.media3.common.MediaMetadata
+import androidx.media3.common.Player
+import androidx.media3.exoplayer.ExoPlayer
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import org.json.JSONArray
+import org.json.JSONObject
+
+class MainViewModel(application: Application) : AndroidViewModel(application) {
+    private val repository = SettingsRepository(application)
+    private val player: ExoPlayer = ExoPlayer.Builder(application).build()
+
+    private val _uiState = MutableStateFlow(UiState())
+    val uiState: StateFlow<UiState> = _uiState.asStateFlow()
+
+    private var positionUpdateJob: Job? = null
+
+    data class UiState(
+        val folderUri: Uri? = null,
+        val books: List<Book> = emptyList(),
+        val isPlaying: Boolean = false,
+        val isLoading: Boolean = false,
+        val currentBook: Book? = null,
+        val artwork: Bitmap? = null,
+        val currentPosition: Long = 0L,
+        val duration: Long = 0L,
+        val chapterTitle: String? = null
+    )
+
+    init {
+        viewModelScope.launch {
+            val savedUriString = repository.folderUri.first()
+            if (savedUriString != null) {
+                val uri = Uri.parse(savedUriString)
+                _uiState.value = _uiState.value.copy(folderUri = uri)
+                if (loadBooksFromSavedList() || loadBooksFromFolderSuspend(uri)) {
+                    restorePlaybackState()
+                }
+            }
+        }
+
+        player.addListener(object : Player.Listener {
+            override fun onIsPlayingChanged(isPlaying: Boolean) {
+                _uiState.value = _uiState.value.copy(isPlaying = isPlaying)
+                if (isPlaying) {
+                    startPositionUpdate()
+                } else {
+                    stopPositionUpdate()
+                    savePlaybackState()
+                }
+            }
+
+            override fun onMediaMetadataChanged(mediaMetadata: MediaMetadata) {
+                val bitmap = mediaMetadata.artworkData?.let { data ->
+                    BitmapFactory.decodeByteArray(data, 0, data.size)
+                }
+                _uiState.value = _uiState.value.copy(
+                    artwork = bitmap,
+                    chapterTitle = mediaMetadata.title?.toString() ?: _uiState.value.currentBook?.name
+                )
+            }
+
+            override fun onPlaybackStateChanged(playbackState: Int) {
+                if (playbackState == Player.STATE_READY) {
+                    _uiState.value = _uiState.value.copy(duration = player.duration)
+                }
+            }
+        })
+    }
+
+    private suspend fun restorePlaybackState() {
+        val lastBookUri = repository.lastBookUri.first() ?: return
+        val lastPosition = repository.lastPosition.first()
+        
+        val book = _uiState.value.books.find { it.uri.toString() == lastBookUri }
+        if (book != null) {
+            _uiState.value = _uiState.value.copy(currentBook = book, currentPosition = lastPosition)
+            player.setMediaItem(MediaItem.fromUri(book.uri), lastPosition)
+            player.prepare()
+        }
+    }
+
+    private fun startPositionUpdate() {
+        positionUpdateJob?.cancel()
+        positionUpdateJob = viewModelScope.launch {
+            while (isActive) {
+                val pos = player.currentPosition
+                _uiState.value = _uiState.value.copy(currentPosition = pos)
+                // Periodic save while playing (every 10s)
+                if (pos / 1000 % 10 == 0L) {
+                    savePlaybackState()
+                }
+                delay(1000)
+            }
+        }
+    }
+
+    private fun stopPositionUpdate() {
+        positionUpdateJob?.cancel()
+    }
+
+    private fun savePlaybackState() {
+        val currentBook = _uiState.value.currentBook ?: return
+        val currentPosition = player.currentPosition
+        viewModelScope.launch {
+            repository.saveLastPlayback(currentBook.uri.toString(), currentPosition)
+        }
+    }
+
+    fun setFolderUri(uri: Uri) {
+        viewModelScope.launch {
+            getApplication<Application>().contentResolver.takePersistableUriPermission(
+                uri,
+                Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+            )
+            repository.saveFolderUri(uri.toString())
+            _uiState.value = _uiState.value.copy(folderUri = uri)
+            loadBooksFromFolderSuspend(uri)
+        }
+    }
+
+    private suspend fun loadBooksFromSavedList(): Boolean {
+        val savedBooksJson = repository.booksList.first() ?: return false
+        return try {
+            val jsonArray = JSONArray(savedBooksJson)
+            val books = mutableListOf<Book>()
+            for (i in 0 until jsonArray.length()) {
+                val obj = jsonArray.getJSONObject(i)
+                books.add(Book(obj.getString("name"), Uri.parse(obj.getString("uri"))))
+            }
+            _uiState.value = _uiState.value.copy(books = books)
+            true
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    private suspend fun loadBooksFromFolderSuspend(uri: Uri): Boolean {
+        _uiState.value = _uiState.value.copy(isLoading = true)
+        val books = withContext(Dispatchers.IO) {
+            val root = DocumentFile.fromTreeUri(getApplication(), uri)
+            val list = mutableListOf<Book>()
+            if (root != null) {
+                findM4bFilesRecursive(root, list)
+            }
+            list
+        }
+        _uiState.value = _uiState.value.copy(books = books, isLoading = false)
+        saveBooks(books)
+        return books.isNotEmpty()
+    }
+
+    private fun findM4bFilesRecursive(directory: DocumentFile, books: MutableList<Book>) {
+        directory.listFiles().forEach { file ->
+            if (file.isDirectory) {
+                findM4bFilesRecursive(file, books)
+            } else if (file.name?.endsWith(".m4b", ignoreCase = true) == true) {
+                books.add(Book(file.name ?: "Unknown", file.uri))
+            }
+        }
+    }
+
+    fun removeBook(book: Book) {
+        val newList = _uiState.value.books.filter { it.uri != book.uri }
+        _uiState.value = _uiState.value.copy(books = newList)
+        saveBooks(newList)
+    }
+
+    private fun saveBooks(books: List<Book>) {
+        viewModelScope.launch {
+            val jsonArray = JSONArray()
+            books.forEach {
+                val jsonObject = JSONObject()
+                jsonObject.put("name", it.name)
+                jsonObject.put("uri", it.uri.toString())
+                jsonArray.put(jsonObject)
+            }
+            repository.saveBooksList(jsonArray.toString())
+        }
+    }
+
+    fun playPause() {
+        if (player.isPlaying) {
+            player.pause()
+            savePlaybackState()
+        } else {
+            if (player.mediaItemCount == 0 && _uiState.value.books.isNotEmpty()) {
+                val bookToPlay = _uiState.value.currentBook ?: _uiState.value.books[0]
+                selectBook(bookToPlay)
+            } else {
+                player.play()
+            }
+        }
+    }
+
+    fun selectBook(book: Book) {
+        player.setMediaItem(MediaItem.fromUri(book.uri))
+        player.prepare()
+        player.play()
+        _uiState.value = _uiState.value.copy(currentBook = book)
+        savePlaybackState()
+    }
+
+    fun seekTo(position: Long) {
+        player.seekTo(position)
+        _uiState.value = _uiState.value.copy(currentPosition = position)
+        savePlaybackState()
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        savePlaybackState()
+        stopPositionUpdate()
+        player.release()
+    }
+}
