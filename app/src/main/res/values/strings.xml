@@ -1,3 +1,35 @@
 <resources>
     <string name="app_name">TomaBooks</string>
+    <string name="settings">Settings</string>
+    <string name="loading_metadata">Loading metadata…</string>
+    <string name="no_book_selected">No book selected</string>
+    <string name="to_the_start">To the start</string>
+    <string name="rewind">Rewind</string>
+    <string name="pause">Pause</string>
+    <string name="play">Play</string>
+    <string name="forward">Forward</string>
+    <string name="to_the_end">To the end</string>
+    <string name="back">Back</string>
+    <string name="remove_book">Remove Book</string>
+    <string name="remove_book_confirmation">Are you sure you want to remove \"%1$s\" from the list?</string>
+    <string name="delete_from_storage">Also delete file from the storage</string>
+    <string name="confirm">Confirm</string>
+    <string name="cancel">Cancel</string>
+    <string name="scanning">Scanning…</string>
+    <string name="select_folder">Select Folder</string>
+    <string name="reload_books">Reload Books</string>
+    <string name="current_folder">Current folder: %1$s</string>
+    <string name="not_selected">Not selected</string>
+    <string name="playback_settings">Playback Settings:</string>
+    <string name="rewind_forward_step">Rewind/Forward step</string>
+    <string name="decrease">Decrease</string>
+    <string name="increase">Increase</string>
+    <string name="seconds_suffix">%1$ds</string>
+    <string name="blind_mode">Blind Mode</string>
+    <string name="blind_mode_desc">Simplified view for limited vision</string>
+    <string name="books_list">Books List:</string>
+    <string name="no_books_found">No .m4b files found.</string>
+    <string name="unknown_author">Unknown Author</string>
+    <string name="remove_from_list">Remove from list</string>
+    <string name="selected">SELECTED</string>
 </resources>

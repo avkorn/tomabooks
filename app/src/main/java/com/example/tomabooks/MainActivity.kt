@@ -12,27 +12,18 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.ArrowDropUp
 import androidx.compose.material.icons.filled.AutoStories
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Face
 import androidx.compose.material.icons.filled.FastForward
@@ -44,40 +35,21 @@ import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.Checkbox
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.ListItem
-import androidx.compose.material3.ListItemDefaults
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Slider
-import androidx.compose.material3.Switch
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.minimumInteractiveComponentSize
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -130,10 +102,10 @@ fun StandardMainScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("TomaBooks") },
+                title = { Text(stringResource(R.string.app_name)) },
                 actions = {
                     IconButton(onClick = onNavigateToSettings) {
-                        Icon(Icons.Default.Settings, contentDescription = "Settings")
+                        Icon(Icons.Default.Settings, contentDescription = stringResource(R.string.settings))
                     }
                 }
             )
@@ -158,7 +130,7 @@ fun StandardMainScreen(
                 if (uiState.artwork != null) {
                     Image(
                         bitmap = uiState.artwork!!.asImageBitmap(),
-                        contentDescription = "Book Cover",
+                        contentDescription = stringResource(R.string.no_book_selected),
                         modifier = Modifier.fillMaxSize(),
                         contentScale = ContentScale.Crop
                     )
@@ -176,7 +148,7 @@ fun StandardMainScreen(
 
             // Book Title (Metadata)
             val displayName = uiState.bookTitle
-                ?: if (uiState.currentBook != null) "Loading metadata..." else "No book selected"
+                ?: if (uiState.currentBook != null) stringResource(R.string.loading_metadata) else stringResource(R.string.no_book_selected)
             Text(
                 text = displayName,
                 style = MaterialTheme.typography.headlineMedium,
@@ -237,7 +209,7 @@ fun StandardMainScreen(
                     IconButton(onClick = { viewModel.seekToStart() }) {
                         Icon(
                             Icons.Default.SkipPrevious,
-                            contentDescription = "To the start",
+                            contentDescription = stringResource(R.string.to_the_start),
                             modifier = Modifier.size(32.dp)
                         )
                     }
@@ -249,7 +221,7 @@ fun StandardMainScreen(
                         IconButton(onClick = { viewModel.rewind() }) {
                             Icon(
                                 Icons.Default.FastRewind,
-                                contentDescription = "Rewind",
+                                contentDescription = stringResource(R.string.rewind),
                                 modifier = Modifier.size(40.dp)
                             )
                         }
@@ -270,7 +242,7 @@ fun StandardMainScreen(
                 ) {
                     Icon(
                         imageVector = if (uiState.isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                        contentDescription = if (uiState.isPlaying) "Pause" else "Play",
+                        contentDescription = if (uiState.isPlaying) stringResource(R.string.pause) else stringResource(R.string.play),
                         modifier = Modifier.size(36.dp)
                     )
                 }
@@ -281,7 +253,7 @@ fun StandardMainScreen(
                         IconButton(onClick = { viewModel.forward() }) {
                             Icon(
                                 Icons.Default.FastForward,
-                                contentDescription = "Forward",
+                                contentDescription = stringResource(R.string.forward),
                                 modifier = Modifier.size(40.dp)
                             )
                         }
@@ -298,7 +270,7 @@ fun StandardMainScreen(
                     IconButton(onClick = { viewModel.seekToEnd() }) {
                         Icon(
                             Icons.Default.SkipNext,
-                            contentDescription = "To the end",
+                            contentDescription = stringResource(R.string.to_the_end),
                             modifier = Modifier.size(32.dp)
                         )
                     }
@@ -320,7 +292,7 @@ fun BlindMainScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("TomaBooks") },
+                title = { Text(stringResource(R.string.app_name)) },
                 actions = {
                     Box(
                         modifier = Modifier
@@ -334,7 +306,7 @@ fun BlindMainScreen(
                     ) {
                         Icon(
                             Icons.Default.Settings,
-                            contentDescription = "Settings",
+                            contentDescription = stringResource(R.string.settings),
                             modifier = Modifier.size(20.dp)
                         )
                     }
@@ -358,7 +330,7 @@ fun BlindMainScreen(
             )
             Text(
                 text = uiState.bookTitle
-                    ?: if (uiState.currentBook != null) "Loading metadata..." else "No book selected",
+                    ?: if (uiState.currentBook != null) stringResource(R.string.loading_metadata) else stringResource(R.string.no_book_selected),
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.Center,
@@ -368,11 +340,9 @@ fun BlindMainScreen(
             Spacer(modifier = Modifier.height(32.dp))
 
             // Read-only Progress Section
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp)
-            ) {
+            Column(modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp)) {
                 Slider(
                     value = uiState.currentPosition.longToFloat(),
                     onValueChange = { /* Read only */ },
@@ -411,7 +381,7 @@ fun BlindMainScreen(
             ) {
                 Icon(
                     imageVector = if (uiState.isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                    contentDescription = if (uiState.isPlaying) "Pause" else "Play",
+                    contentDescription = if (uiState.isPlaying) stringResource(R.string.pause) else stringResource(R.string.play),
                     modifier = Modifier.fillMaxSize(0.7f),
                     tint = Color.White
                 )
@@ -454,10 +424,10 @@ fun SettingsScreen(viewModel: MainViewModel, onBack: () -> Unit) {
                 showDeleteDialog = false
                 bookToDelete = null
             },
-            title = { Text("Remove Book") },
+            title = { Text(stringResource(R.string.remove_book)) },
             text = {
                 Column {
-                    Text("Are you sure you want to remove \"${bookToDelete?.title ?: bookToDelete?.name}\" from the list?")
+                    Text(stringResource(R.string.remove_book_confirmation, bookToDelete?.title ?: bookToDelete?.name ?: ""))
                     Spacer(modifier = Modifier.height(16.dp))
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
@@ -468,7 +438,7 @@ fun SettingsScreen(viewModel: MainViewModel, onBack: () -> Unit) {
                             onCheckedChange = { deleteFromStorage = it }
                         )
                         Text(
-                            "Also delete file from the storage",
+                            stringResource(R.string.delete_from_storage),
                             style = MaterialTheme.typography.bodyMedium
                         )
                     }
@@ -481,15 +451,15 @@ fun SettingsScreen(viewModel: MainViewModel, onBack: () -> Unit) {
                     bookToDelete = null
                     deleteFromStorage = false
                 }) {
-                    Text("Confirm", color = MaterialTheme.colorScheme.error)
+                    Text(stringResource(R.string.confirm), color = MaterialTheme.colorScheme.error)
                 }
             },
             dismissButton = {
-                TextButton(onClick = {
+                TextButton(onClick = { 
                     showDeleteDialog = false
                     bookToDelete = null
                 }) {
-                    Text("Cancel")
+                    Text(stringResource(R.string.cancel))
                 }
             }
         )
@@ -498,10 +468,10 @@ fun SettingsScreen(viewModel: MainViewModel, onBack: () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Settings") },
+                title = { Text(stringResource(R.string.settings)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
                     }
                 }
             )
@@ -530,9 +500,9 @@ fun SettingsScreen(viewModel: MainViewModel, onBack: () -> Unit) {
                             color = MaterialTheme.colorScheme.onPrimary
                         )
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("Scanning...")
+                        Text(stringResource(R.string.scanning))
                     } else {
-                        Text("Select Folder")
+                        Text(stringResource(R.string.select_folder))
                     }
                 }
 
@@ -542,14 +512,14 @@ fun SettingsScreen(viewModel: MainViewModel, onBack: () -> Unit) {
                 ) {
                     Icon(
                         imageVector = Icons.Default.Refresh,
-                        contentDescription = "Reload Books",
+                        contentDescription = stringResource(R.string.reload_books),
                         tint = MaterialTheme.colorScheme.primary
                     )
                 }
             }
 
             Text(
-                text = "Current folder: ${uiState.folderUri?.path ?: "Not selected"}",
+                text = stringResource(R.string.current_folder, uiState.folderUri?.path ?: stringResource(R.string.not_selected)),
                 style = MaterialTheme.typography.bodySmall,
                 modifier = Modifier.padding(vertical = 8.dp)
             )
@@ -557,7 +527,7 @@ fun SettingsScreen(viewModel: MainViewModel, onBack: () -> Unit) {
             HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
 
             // Playback Settings
-            Text("Playback Settings:", style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(R.string.playback_settings), style = MaterialTheme.typography.titleMedium)
             Spacer(modifier = Modifier.height(8.dp))
 
             Row(
@@ -565,7 +535,7 @@ fun SettingsScreen(viewModel: MainViewModel, onBack: () -> Unit) {
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Text("Rewind/Forward step", style = MaterialTheme.typography.bodyMedium)
+                Text(stringResource(R.string.rewind_forward_step), style = MaterialTheme.typography.bodyMedium)
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = {
                         viewModel.setRewindForwardSeconds(
@@ -574,7 +544,7 @@ fun SettingsScreen(viewModel: MainViewModel, onBack: () -> Unit) {
                             )
                         )
                     }) {
-                        Icon(Icons.Default.Remove, contentDescription = "Decrease")
+                        Icon(Icons.Default.Remove, contentDescription = stringResource(R.string.decrease))
                     }
                     Text(
                         text = "${uiState.rewindForwardSeconds}s",
@@ -586,7 +556,7 @@ fun SettingsScreen(viewModel: MainViewModel, onBack: () -> Unit) {
                     IconButton(onClick = {
                         viewModel.setRewindForwardSeconds(uiState.rewindForwardSeconds + 10)
                     }) {
-                        Icon(Icons.Default.Add, contentDescription = "Increase")
+                        Icon(Icons.Default.Add, contentDescription = stringResource(R.string.increase))
                     }
                 }
             }
@@ -600,9 +570,9 @@ fun SettingsScreen(viewModel: MainViewModel, onBack: () -> Unit) {
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Column {
-                    Text("Blind Mode", style = MaterialTheme.typography.bodyLarge)
+                    Text(stringResource(R.string.blind_mode), style = MaterialTheme.typography.bodyLarge)
                     Text(
-                        "Simplified view for limited vision",
+                        stringResource(R.string.blind_mode_desc),
                         style = MaterialTheme.typography.bodySmall
                     )
                 }
@@ -614,7 +584,7 @@ fun SettingsScreen(viewModel: MainViewModel, onBack: () -> Unit) {
 
             HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
 
-            Text("Books List:", style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(R.string.books_list), style = MaterialTheme.typography.titleMedium)
             Spacer(modifier = Modifier.height(8.dp))
 
             if (uiState.isLoading) {
@@ -634,7 +604,7 @@ fun SettingsScreen(viewModel: MainViewModel, onBack: () -> Unit) {
                     if (uiState.books.isEmpty()) {
                         item {
                             Text(
-                                text = "No .m4b files found.",
+                                text = stringResource(R.string.no_books_found),
                                 style = MaterialTheme.typography.bodyMedium,
                                 modifier = Modifier.padding(16.dp)
                             )
@@ -646,7 +616,7 @@ fun SettingsScreen(viewModel: MainViewModel, onBack: () -> Unit) {
                         ListItem(
                             headlineContent = {
                                 Text(
-                                    text = book.author ?: "Unknown Author",
+                                    text = book.author ?: stringResource(R.string.unknown_author),
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis
                                 )
@@ -673,7 +643,7 @@ fun SettingsScreen(viewModel: MainViewModel, onBack: () -> Unit) {
                                 }) {
                                     Icon(
                                         Icons.Default.Delete,
-                                        contentDescription = "Remove from list"
+                                        contentDescription = stringResource(R.string.remove_from_list)
                                     )
                                 }
                             },

@@ -1,0 +1,35 @@
+<resources>
+    <string name="app_name">TomaBooks</string>
+    <string name="settings">Настройки</string>
+    <string name="loading_metadata">Загрузка данных…</string>
+    <string name="no_book_selected">Книга не выбрана</string>
+    <string name="to_the_start">В начало</string>
+    <string name="rewind">Назад</string>
+    <string name="pause">Пауза</string>
+    <string name="play">Слушать</string>
+    <string name="forward">Вперед</string>
+    <string name="to_the_end">В конец</string>
+    <string name="back">Назад</string>
+    <string name="remove_book">Удалить книгу</string>
+    <string name="remove_book_confirmation">Вы уверены, что хотите удалить \"%1$s\" из списка?</string>
+    <string name="delete_from_storage">Также удалить файл из памяти</string>
+    <string name="confirm">Да</string>
+    <string name="cancel">Отмена</string>
+    <string name="scanning">Поиск…</string>
+    <string name="select_folder">Выбрать папку</string>
+    <string name="reload_books">Обновить книги</string>
+    <string name="current_folder">Папка: %1$s</string>
+    <string name="not_selected">Не выбрана</string>
+    <string name="playback_settings">Настройки:</string>
+    <string name="rewind_forward_step">Шаг перемотки</string>
+    <string name="decrease">Уменьшить</string>
+    <string name="increase">Увеличить</string>
+    <string name="seconds_suffix">%1$d с</string>
+    <string name="blind_mode">Для слабовидящих</string>
+    <string name="blind_mode_desc">Упрощенный вид с крупными кнопками</string>
+    <string name="books_list">Список книг:</string>
+    <string name="no_books_found">Файлы .m4b не найдены.</string>
+    <string name="unknown_author">Неизвестный автор</string>
+    <string name="remove_from_list">Удалить из списка</string>
+    <string name="selected">ВЫБРАНО</string>
+</resources>
