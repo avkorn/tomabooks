@@ -527,8 +527,8 @@ fun SettingsScreen(viewModel: MainViewModel, onBack: () -> Unit) {
             HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
 
             // Playback Settings
-            Text(stringResource(R.string.playback_settings), style = MaterialTheme.typography.titleMedium)
-            Spacer(modifier = Modifier.height(8.dp))
+//            Text(stringResource(R.string.playback_settings), style = MaterialTheme.typography.titleMedium)
+//            Spacer(modifier = Modifier.height(8.dp))
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
