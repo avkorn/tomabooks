@@ -64,7 +64,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             _uiState.value = _uiState.value.copy(rewindForwardSeconds = rewindSeconds)
             
             if (savedUriString != null) {
-                val uri = Uri.parse(savedUriString)
+                val uri = savedUriString.toUri()
                 _uiState.value = _uiState.value.copy(folderUri = uri)
                 if (loadBooksFromSavedList() || loadBooksFromFolderSuspend(uri)) {
                     restorePlaybackState()
@@ -126,18 +126,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun playPreviousBook() {
-        val books = _uiState.value.books
-        val currentBook = _uiState.value.currentBook ?: return
-        val currentIndex = books.indexOfFirst { it.uri.toString() == currentBook.uri.toString() }
-        
-        if (currentIndex > 0) {
-            val prevBook = books[currentIndex - 1]
-            selectBook(prevBook)
-        } else {
-            seekTo(0L)
-        }
-    }
+//    fun playPreviousBook() {
+//        val books = _uiState.value.books
+//        val currentBook = _uiState.value.currentBook ?: return
+//        val currentIndex = books.indexOfFirst { it.uri.toString() == currentBook.uri.toString() }
+//
+//        if (currentIndex > 0) {
+//            val prevBook = books[currentIndex - 1]
+//            selectBook(prevBook)
+//        } else {
+//            seekTo(0L)
+//        }
+//    }
 
     fun rewind() {
         val newPos = (player.currentPosition - _uiState.value.rewindForwardSeconds * 1000).coerceAtLeast(0L)
@@ -243,14 +243,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 books.add(Book(
                     name = obj.getString("name"),
                     uri = obj.getString("uri").toUri(),
-                    title = obj.optString("title", null).takeIf { it != "null" && it.isNotEmpty() },
-                    author = obj.optString("author", null).takeIf { it != "null" && it.isNotEmpty() },
+                    title = obj.optString("title").takeIf { it != "null" && it.isNotEmpty() },
+                    author = obj.optString("author").takeIf { it != "null" && it.isNotEmpty() },
                 ))
             }
             val sortedBooks = sortBooks(books)
             _uiState.value = _uiState.value.copy(books = sortedBooks)
             true
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             false
         }
     }
@@ -273,7 +273,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private fun sortBooks(books: List<Book>): List<Book> {
         return books.sortedWith(
             compareBy(
-                { it.author?.lowercase() ?: "zzzz" },
+                { it.author?.lowercase() ?: "яяяяяяя" },
                 { it.title?.lowercase() ?: it.name.lowercase() }
             )
         )
@@ -293,7 +293,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     author = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ALBUMARTIST) ?:
                              retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ARTIST) ?:
                              retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_AUTHOR)
-                } catch (e: Exception) {
+                } catch (_: Exception) {
                 } finally {
                     retriever.release()
                 }
@@ -389,7 +389,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         author = author ?: _uiState.value.author
                     )
                 }
-            } catch (e: Exception) {
+            } catch (_: Exception) {
             } finally {
                 retriever.release()
             }

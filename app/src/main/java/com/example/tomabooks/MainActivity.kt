@@ -7,21 +7,32 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ArrowDropDown
-import androidx.compose.material.icons.filled.ArrowDropUp
 import androidx.compose.material.icons.filled.AutoStories
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Face
 import androidx.compose.material.icons.filled.FastForward
@@ -33,8 +44,30 @@ import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.ListItem
+import androidx.compose.material3.ListItemDefaults
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Slider
+import androidx.compose.material3.Switch
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.minimumInteractiveComponentSize
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -42,11 +75,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -62,10 +93,12 @@ class MainActivity : ComponentActivity() {
             TomaBooksTheme {
                 val navController = rememberNavController()
                 val viewModel: MainViewModel = viewModel()
-                
+
                 NavHost(navController = navController, startDestination = "main") {
                     composable("main") {
-                        MainScreen(viewModel, onNavigateToSettings = { navController.navigate("settings") })
+                        MainScreen(
+                            viewModel,
+                            onNavigateToSettings = { navController.navigate("settings") })
                     }
                     composable("settings") {
                         SettingsScreen(viewModel, onBack = { navController.popBackStack() })
@@ -79,7 +112,7 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun MainScreen(viewModel: MainViewModel, onNavigateToSettings: () -> Unit) {
     val uiState by viewModel.uiState.collectAsState()
-    
+
     if (uiState.isBlindMode) {
         BlindMainScreen(uiState, viewModel, onNavigateToSettings)
     } else {
@@ -87,9 +120,13 @@ fun MainScreen(viewModel: MainViewModel, onNavigateToSettings: () -> Unit) {
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
-fun StandardMainScreen(uiState: MainViewModel.UiState, viewModel: MainViewModel, onNavigateToSettings: () -> Unit) {
+fun StandardMainScreen(
+    uiState: MainViewModel.UiState,
+    viewModel: MainViewModel,
+    onNavigateToSettings: () -> Unit
+) {
     Scaffold(
         topBar = {
             TopAppBar(
@@ -138,7 +175,8 @@ fun StandardMainScreen(uiState: MainViewModel.UiState, viewModel: MainViewModel,
             Spacer(modifier = Modifier.height(32.dp))
 
             // Book Title (Metadata)
-            val displayName = uiState.bookTitle ?: if (uiState.currentBook != null) "Loading metadata..." else "No book selected"
+            val displayName = uiState.bookTitle
+                ?: if (uiState.currentBook != null) "Loading metadata..." else "No book selected"
             Text(
                 text = displayName,
                 style = MaterialTheme.typography.headlineMedium,
@@ -151,7 +189,7 @@ fun StandardMainScreen(uiState: MainViewModel.UiState, viewModel: MainViewModel,
             // Author (Metadata)
             if (!uiState.author.isNullOrEmpty()) {
                 Text(
-                    text = uiState.author!!,
+                    text = uiState.author,
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.secondary,
                     maxLines = 1,
@@ -197,7 +235,11 @@ fun StandardMainScreen(uiState: MainViewModel.UiState, viewModel: MainViewModel,
                 // To the start
                 Box(modifier = Modifier.height(56.dp), contentAlignment = Alignment.Center) {
                     IconButton(onClick = { viewModel.seekToStart() }) {
-                        Icon(Icons.Default.SkipPrevious, contentDescription = "To the start", modifier = Modifier.size(32.dp))
+                        Icon(
+                            Icons.Default.SkipPrevious,
+                            contentDescription = "To the start",
+                            modifier = Modifier.size(32.dp)
+                        )
                     }
                 }
 
@@ -205,7 +247,11 @@ fun StandardMainScreen(uiState: MainViewModel.UiState, viewModel: MainViewModel,
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Box(modifier = Modifier.height(56.dp), contentAlignment = Alignment.Center) {
                         IconButton(onClick = { viewModel.rewind() }) {
-                            Icon(Icons.Default.FastRewind, contentDescription = "Rewind", modifier = Modifier.size(40.dp))
+                            Icon(
+                                Icons.Default.FastRewind,
+                                contentDescription = "Rewind",
+                                modifier = Modifier.size(40.dp)
+                            )
                         }
                     }
                     Text(
@@ -233,7 +279,11 @@ fun StandardMainScreen(uiState: MainViewModel.UiState, viewModel: MainViewModel,
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Box(modifier = Modifier.height(56.dp), contentAlignment = Alignment.Center) {
                         IconButton(onClick = { viewModel.forward() }) {
-                            Icon(Icons.Default.FastForward, contentDescription = "Forward", modifier = Modifier.size(40.dp))
+                            Icon(
+                                Icons.Default.FastForward,
+                                contentDescription = "Forward",
+                                modifier = Modifier.size(40.dp)
+                            )
                         }
                     }
                     Text(
@@ -246,26 +296,47 @@ fun StandardMainScreen(uiState: MainViewModel.UiState, viewModel: MainViewModel,
                 // To the end (next book)
                 Box(modifier = Modifier.height(56.dp), contentAlignment = Alignment.Center) {
                     IconButton(onClick = { viewModel.seekToEnd() }) {
-                        Icon(Icons.Default.SkipNext, contentDescription = "To the end", modifier = Modifier.size(32.dp))
+                        Icon(
+                            Icons.Default.SkipNext,
+                            contentDescription = "To the end",
+                            modifier = Modifier.size(32.dp)
+                        )
                     }
                 }
             }
-            
+
             Spacer(modifier = Modifier.height(32.dp))
         }
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
-fun BlindMainScreen(uiState: MainViewModel.UiState, viewModel: MainViewModel, onNavigateToSettings: () -> Unit) {
+fun BlindMainScreen(
+    uiState: MainViewModel.UiState,
+    viewModel: MainViewModel,
+    onNavigateToSettings: () -> Unit
+) {
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text("TomaBooks") },
                 actions = {
-                    IconButton(onClick = onNavigateToSettings) {
-                        Icon(Icons.Default.Settings, contentDescription = "Settings", modifier = Modifier.size(48.dp))
+                    Box(
+                        modifier = Modifier
+                            .minimumInteractiveComponentSize()
+                            .size(48.dp)
+                            .combinedClickable(
+                                onClick = { /* Ignore single click */ },
+                                onDoubleClick = onNavigateToSettings
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            Icons.Default.Settings,
+                            contentDescription = "Settings",
+                            modifier = Modifier.size(20.dp)
+                        )
                     }
                 }
             )
@@ -286,7 +357,8 @@ fun BlindMainScreen(uiState: MainViewModel.UiState, viewModel: MainViewModel, on
                 modifier = Modifier.fillMaxWidth()
             )
             Text(
-                text = uiState.bookTitle ?: if (uiState.currentBook != null) "Loading metadata..." else "No book selected",
+                text = uiState.bookTitle
+                    ?: if (uiState.currentBook != null) "Loading metadata..." else "No book selected",
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.Center,
@@ -296,7 +368,11 @@ fun BlindMainScreen(uiState: MainViewModel.UiState, viewModel: MainViewModel, on
             Spacer(modifier = Modifier.height(32.dp))
 
             // Read-only Progress Section
-            Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp)
+            ) {
                 Slider(
                     value = uiState.currentPosition.longToFloat(),
                     onValueChange = { /* Read only */ },
@@ -327,7 +403,10 @@ fun BlindMainScreen(uiState: MainViewModel.UiState, viewModel: MainViewModel, on
                     .weight(1f)
                     .clip(RoundedCornerShape(32.dp))
                     .background(if (uiState.isPlaying) Color.Red else Color.Green) // Pure Red/Green
-                    .clickable { viewModel.playPause() },
+                    .combinedClickable(
+                        onClick = { viewModel.playPause() },
+                        onLongClick = { viewModel.playPause() }
+                    ),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
@@ -371,7 +450,7 @@ fun SettingsScreen(viewModel: MainViewModel, onBack: () -> Unit) {
 
     if (showDeleteDialog && bookToDelete != null) {
         AlertDialog(
-            onDismissRequest = { 
+            onDismissRequest = {
                 showDeleteDialog = false
                 bookToDelete = null
             },
@@ -388,7 +467,10 @@ fun SettingsScreen(viewModel: MainViewModel, onBack: () -> Unit) {
                             checked = deleteFromStorage,
                             onCheckedChange = { deleteFromStorage = it }
                         )
-                        Text("Also delete file from the storage", style = MaterialTheme.typography.bodyMedium)
+                        Text(
+                            "Also delete file from the storage",
+                            style = MaterialTheme.typography.bodyMedium
+                        )
                     }
                 }
             },
@@ -403,7 +485,7 @@ fun SettingsScreen(viewModel: MainViewModel, onBack: () -> Unit) {
                 }
             },
             dismissButton = {
-                TextButton(onClick = { 
+                TextButton(onClick = {
                     showDeleteDialog = false
                     bookToDelete = null
                 }) {
@@ -453,7 +535,7 @@ fun SettingsScreen(viewModel: MainViewModel, onBack: () -> Unit) {
                         Text("Select Folder")
                     }
                 }
-                
+
                 IconButton(
                     onClick = { viewModel.reloadBooks() },
                     enabled = !uiState.isLoading && uiState.folderUri != null
@@ -465,7 +547,7 @@ fun SettingsScreen(viewModel: MainViewModel, onBack: () -> Unit) {
                     )
                 }
             }
-            
+
             Text(
                 text = "Current folder: ${uiState.folderUri?.path ?: "Not selected"}",
                 style = MaterialTheme.typography.bodySmall,
@@ -477,7 +559,7 @@ fun SettingsScreen(viewModel: MainViewModel, onBack: () -> Unit) {
             // Playback Settings
             Text("Playback Settings:", style = MaterialTheme.typography.titleMedium)
             Spacer(modifier = Modifier.height(8.dp))
-            
+
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
@@ -485,8 +567,12 @@ fun SettingsScreen(viewModel: MainViewModel, onBack: () -> Unit) {
             ) {
                 Text("Rewind/Forward step", style = MaterialTheme.typography.bodyMedium)
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = { 
-                        viewModel.setRewindForwardSeconds((uiState.rewindForwardSeconds - 10).coerceAtLeast(10))
+                    IconButton(onClick = {
+                        viewModel.setRewindForwardSeconds(
+                            (uiState.rewindForwardSeconds - 10).coerceAtLeast(
+                                10
+                            )
+                        )
                     }) {
                         Icon(Icons.Default.Remove, contentDescription = "Decrease")
                     }
@@ -497,7 +583,7 @@ fun SettingsScreen(viewModel: MainViewModel, onBack: () -> Unit) {
                         modifier = Modifier.widthIn(min = 48.dp),
                         textAlign = TextAlign.Center
                     )
-                    IconButton(onClick = { 
+                    IconButton(onClick = {
                         viewModel.setRewindForwardSeconds(uiState.rewindForwardSeconds + 10)
                     }) {
                         Icon(Icons.Default.Add, contentDescription = "Increase")
@@ -515,22 +601,27 @@ fun SettingsScreen(viewModel: MainViewModel, onBack: () -> Unit) {
             ) {
                 Column {
                     Text("Blind Mode", style = MaterialTheme.typography.bodyLarge)
-                    Text("Simplified view for limited vision", style = MaterialTheme.typography.bodySmall)
+                    Text(
+                        "Simplified view for limited vision",
+                        style = MaterialTheme.typography.bodySmall
+                    )
                 }
                 Switch(
                     checked = uiState.isBlindMode,
                     onCheckedChange = { viewModel.setBlindMode(it) }
                 )
             }
-            
+
             HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
-            
+
             Text("Books List:", style = MaterialTheme.typography.titleMedium)
             Spacer(modifier = Modifier.height(8.dp))
-            
+
             if (uiState.isLoading) {
                 Box(
-                    modifier = Modifier.weight(1f).fillMaxWidth(),
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth(),
                     contentAlignment = Alignment.Center
                 ) {
                     CircularProgressIndicator()
@@ -551,9 +642,9 @@ fun SettingsScreen(viewModel: MainViewModel, onBack: () -> Unit) {
                     }
                     items(uiState.books) { book ->
                         val isSelected = book.uri.toString() == uiState.currentBook?.uri.toString()
-                        
+
                         ListItem(
-                            headlineContent = { 
+                            headlineContent = {
                                 Text(
                                     text = book.author ?: "Unknown Author",
                                     maxLines = 1,
@@ -576,11 +667,14 @@ fun SettingsScreen(viewModel: MainViewModel, onBack: () -> Unit) {
                                 )
                             },
                             trailingContent = {
-                                IconButton(onClick = { 
+                                IconButton(onClick = {
                                     bookToDelete = book
                                     showDeleteDialog = true
                                 }) {
-                                    Icon(Icons.Default.Delete, contentDescription = "Remove from list")
+                                    Icon(
+                                        Icons.Default.Delete,
+                                        contentDescription = "Remove from list"
+                                    )
                                 }
                             },
                             colors = ListItemDefaults.colors(
