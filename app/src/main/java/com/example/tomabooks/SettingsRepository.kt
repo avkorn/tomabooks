@@ -1,6 +1,7 @@
 package com.example.tomabooks
 
 import android.content.Context
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
@@ -17,6 +18,7 @@ class SettingsRepository(private val context: Context) {
     private val LAST_BOOK_URI_KEY = stringPreferencesKey("last_book_uri")
     private val LAST_POSITION_KEY = longPreferencesKey("last_position")
     private val REWIND_FORWARD_SECONDS_KEY = intPreferencesKey("rewind_forward_seconds")
+    private val BLIND_MODE_KEY = booleanPreferencesKey("blind_mode")
 
     val folderUri: Flow<String?> = context.dataStore.data.map { preferences ->
         preferences[FOLDER_URI_KEY]
@@ -36,6 +38,10 @@ class SettingsRepository(private val context: Context) {
 
     val rewindForwardSeconds: Flow<Int> = context.dataStore.data.map { preferences ->
         preferences[REWIND_FORWARD_SECONDS_KEY] ?: 20
+    }
+
+    val isBlindMode: Flow<Boolean> = context.dataStore.data.map { preferences ->
+        preferences[BLIND_MODE_KEY] ?: false
     }
 
     suspend fun saveFolderUri(uri: String) {
@@ -60,6 +66,12 @@ class SettingsRepository(private val context: Context) {
     suspend fun saveRewindForwardSeconds(seconds: Int) {
         context.dataStore.edit { preferences ->
             preferences[REWIND_FORWARD_SECONDS_KEY] = seconds
+        }
+    }
+
+    suspend fun saveBlindMode(enabled: Boolean) {
+        context.dataStore.edit { preferences ->
+            preferences[BLIND_MODE_KEY] = enabled
         }
     }
 }

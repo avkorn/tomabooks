@@ -47,10 +47,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val duration: Long = 0L,
         val bookTitle: String? = null,
         val author: String? = null,
-        val rewindForwardSeconds: Int = 20
+        val rewindForwardSeconds: Int = 20,
+        val isBlindMode: Boolean = false
     )
 
     init {
+        viewModelScope.launch {
+            repository.isBlindMode.collect { blindMode ->
+                _uiState.value = _uiState.value.copy(isBlindMode = blindMode)
+            }
+        }
+
         viewModelScope.launch {
             val savedUriString = repository.folderUri.first()
             val rewindSeconds = repository.rewindForwardSeconds.first()
@@ -154,6 +161,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             repository.saveRewindForwardSeconds(seconds)
             _uiState.value = _uiState.value.copy(rewindForwardSeconds = seconds)
+        }
+    }
+
+    fun setBlindMode(enabled: Boolean) {
+        viewModelScope.launch {
+            repository.saveBlindMode(enabled)
         }
     }
 

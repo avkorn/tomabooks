@@ -18,6 +18,8 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.ArrowDropUp
 import androidx.compose.material.icons.filled.AutoStories
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
@@ -40,9 +42,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -72,11 +76,20 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainScreen(viewModel: MainViewModel, onNavigateToSettings: () -> Unit) {
     val uiState by viewModel.uiState.collectAsState()
+    
+    if (uiState.isBlindMode) {
+        BlindMainScreen(uiState, viewModel, onNavigateToSettings)
+    } else {
+        StandardMainScreen(uiState, viewModel, onNavigateToSettings)
+    }
+}
 
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun StandardMainScreen(uiState: MainViewModel.UiState, viewModel: MainViewModel, onNavigateToSettings: () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
@@ -243,6 +256,91 @@ fun MainScreen(viewModel: MainViewModel, onNavigateToSettings: () -> Unit) {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun BlindMainScreen(uiState: MainViewModel.UiState, viewModel: MainViewModel, onNavigateToSettings: () -> Unit) {
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("TomaBooks") },
+                actions = {
+                    IconButton(onClick = onNavigateToSettings) {
+                        Icon(Icons.Default.Settings, contentDescription = "Settings", modifier = Modifier.size(48.dp))
+                    }
+                }
+            )
+        }
+    ) { innerPadding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+                .padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            // Author and Book Name in large text
+            Text(
+                text = uiState.author ?: "",
+                style = MaterialTheme.typography.headlineSmall,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth()
+            )
+            Text(
+                text = uiState.bookTitle ?: if (uiState.currentBook != null) "Loading metadata..." else "No book selected",
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            Spacer(modifier = Modifier.height(32.dp))
+
+            // Read-only Progress Section
+            Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
+                Slider(
+                    value = uiState.currentPosition.longToFloat(),
+                    onValueChange = { /* Read only */ },
+                    valueRange = 0f..(uiState.duration.coerceAtLeast(1L).toFloat()),
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = formatTime(uiState.currentPosition),
+                        style = MaterialTheme.typography.bodyLarge
+                    )
+                    Text(
+                        text = formatTime(uiState.duration),
+                        style = MaterialTheme.typography.bodyLarge
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Giant Play/Pause Button - Fills the rest of the screen
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .clip(RoundedCornerShape(32.dp))
+                    .background(if (uiState.isPlaying) Color.Red else Color.Green) // Pure Red/Green
+                    .clickable { viewModel.playPause() },
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = if (uiState.isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                    contentDescription = if (uiState.isPlaying) "Pause" else "Play",
+                    modifier = Modifier.fillMaxSize(0.7f),
+                    tint = Color.White
+                )
+            }
+        }
+    }
+}
+
 fun Long.longToFloat(): Float = this.toFloat()
 
 fun formatTime(ms: Long): String {
@@ -376,7 +474,7 @@ fun SettingsScreen(viewModel: MainViewModel, onBack: () -> Unit) {
 
             HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
 
-            // Rewind/Forward seconds setting
+            // Playback Settings
             Text("Playback Settings:", style = MaterialTheme.typography.titleMedium)
             Spacer(modifier = Modifier.height(8.dp))
             
@@ -405,6 +503,24 @@ fun SettingsScreen(viewModel: MainViewModel, onBack: () -> Unit) {
                         Icon(Icons.Default.Add, contentDescription = "Increase")
                     }
                 }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Blind Mode Switcher
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column {
+                    Text("Blind Mode", style = MaterialTheme.typography.bodyLarge)
+                    Text("Simplified view for limited vision", style = MaterialTheme.typography.bodySmall)
+                }
+                Switch(
+                    checked = uiState.isBlindMode,
+                    onCheckedChange = { viewModel.setBlindMode(it) }
+                )
             }
             
             HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
@@ -454,7 +570,7 @@ fun SettingsScreen(viewModel: MainViewModel, onBack: () -> Unit) {
                             },
                             leadingContent = {
                                 Icon(
-                                    imageVector = if (isSelected) Icons.Default.PlayArrow else Icons.Filled.AutoStories,
+                                    imageVector = if (isSelected) Icons.Default.PlayArrow else Icons.Default.AutoStories,
                                     contentDescription = null,
                                     tint = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
                                 )
