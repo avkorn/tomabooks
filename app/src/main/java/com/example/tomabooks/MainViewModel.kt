@@ -106,7 +106,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private fun playNextBook() {
         val books = _uiState.value.books
         val currentBook = _uiState.value.currentBook ?: return
-        val currentIndex = books.indexOfFirst { it.uri == currentBook.uri }
+        val currentIndex = books.indexOfFirst { it.uri.toString() == currentBook.uri.toString() }
         
         if (currentIndex != -1) {
             // Reset position for the book that just finished
@@ -124,7 +124,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun playPreviousBook() {
         val books = _uiState.value.books
         val currentBook = _uiState.value.currentBook ?: return
-        val currentIndex = books.indexOfFirst { it.uri == currentBook.uri }
+        val currentIndex = books.indexOfFirst { it.uri.toString() == currentBook.uri.toString() }
         
         if (currentIndex > 0) {
             val prevBook = books[currentIndex - 1]
@@ -232,8 +232,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 books.add(Book(
                     name = obj.getString("name"),
                     uri = obj.getString("uri").toUri(),
-                    title = obj.optString("title", null).takeIf { it != "null" },
-                    author = obj.optString("author", null).takeIf { it != "null" }
+                    title = obj.optString("title", null).takeIf { it != "null" && it.isNotEmpty() },
+                    author = obj.optString("author", null).takeIf { it != "null" && it.isNotEmpty() },
                 ))
             }
             val sortedBooks = sortBooks(books)
@@ -292,12 +292,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun removeBook(book: Book) {
-        val isCurrent = book.uri == _uiState.value.currentBook?.uri
+        val isCurrent = book.uri.toString() == _uiState.value.currentBook?.uri.toString()
         if (isCurrent) {
             player.stop()
         }
         
-        val newList = _uiState.value.books.filter { it.uri != book.uri }
+        val newList = _uiState.value.books.filter { it.uri.toString() != book.uri.toString() }
         _uiState.value = _uiState.value.copy(
             books = newList,
             currentBook = if (isCurrent) null else _uiState.value.currentBook,

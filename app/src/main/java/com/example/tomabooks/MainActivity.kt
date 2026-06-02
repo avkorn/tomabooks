@@ -17,6 +17,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.AutoStories
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Face
@@ -24,6 +26,8 @@ import androidx.compose.material.icons.filled.FastForward
 import androidx.compose.material.icons.filled.FastRewind
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
@@ -36,11 +40,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -164,7 +166,7 @@ fun MainScreen(viewModel: MainViewModel, onNavigateToSettings: () -> Unit) {
             // Progress Section
             Column(modifier = Modifier.fillMaxWidth()) {
                 Slider(
-                    value = uiState.currentPosition.LongToFloat(),
+                    value = uiState.currentPosition.longToFloat(),
                     onValueChange = { viewModel.seekTo(it.toLong()) },
                     valueRange = 0f..(uiState.duration.coerceAtLeast(1L).toFloat()),
                     modifier = Modifier.fillMaxWidth()
@@ -254,7 +256,7 @@ fun MainScreen(viewModel: MainViewModel, onNavigateToSettings: () -> Unit) {
     }
 }
 
-fun Long.LongToFloat(): Float = this.toFloat()
+fun Long.longToFloat(): Float = this.toFloat()
 
 fun formatTime(ms: Long): String {
     val totalSeconds = ms / 1000
@@ -278,6 +280,54 @@ fun SettingsScreen(viewModel: MainViewModel, onBack: () -> Unit) {
         uri?.let { viewModel.setFolderUri(it) }
     }
 
+    var showDeleteDialog by remember { mutableStateOf(false) }
+    var bookToDelete by remember { mutableStateOf<Book?>(null) }
+    var deleteFromStorage by remember { mutableStateOf(false) }
+
+    if (showDeleteDialog && bookToDelete != null) {
+        AlertDialog(
+            onDismissRequest = { 
+                showDeleteDialog = false
+                bookToDelete = null
+            },
+            title = { Text("Remove Book") },
+            text = {
+                Column {
+                    Text("Are you sure you want to remove \"${bookToDelete?.title ?: bookToDelete?.name}\" from the list?")
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.clickable { deleteFromStorage = !deleteFromStorage }
+                    ) {
+                        Checkbox(
+                            checked = deleteFromStorage,
+                            onCheckedChange = { deleteFromStorage = it }
+                        )
+                        Text("Also delete file from the storage", style = MaterialTheme.typography.bodyMedium)
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    bookToDelete?.let { viewModel.removeBook(it) }
+                    showDeleteDialog = false
+                    bookToDelete = null
+                    deleteFromStorage = false
+                }) {
+                    Text("Confirm", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { 
+                    showDeleteDialog = false
+                    bookToDelete = null
+                }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -296,33 +346,39 @@ fun SettingsScreen(viewModel: MainViewModel, onBack: () -> Unit) {
                 .padding(innerPadding)
                 .padding(16.dp)
         ) {
-            Button(
-                onClick = { launcher.launch(null) },
+            Row(
                 modifier = Modifier.fillMaxWidth(),
-                enabled = !uiState.isLoading
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                if (uiState.isLoading) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(24.dp),
-                        strokeWidth = 2.dp,
-                        color = MaterialTheme.colorScheme.onPrimary
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Scanning...")
-                } else {
-                    Text("Select Audiobooks Folder")
+                Button(
+                    onClick = { launcher.launch(null) },
+                    modifier = Modifier.weight(1f),
+                    enabled = !uiState.isLoading
+                ) {
+                    if (uiState.isLoading) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(24.dp),
+                            strokeWidth = 2.dp,
+                            color = MaterialTheme.colorScheme.onPrimary
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Scanning...")
+                    } else {
+                        Text("Select Folder")
+                    }
                 }
-            }
-            
-            Spacer(modifier = Modifier.height(8.dp))
-            
-            Button(
-                onClick = { viewModel.reloadBooks() },
-                modifier = Modifier.fillMaxWidth(),
-                enabled = !uiState.isLoading && uiState.folderUri != null,
-                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
-            ) {
-                Text("Reload Books")
+                
+                IconButton(
+                    onClick = { viewModel.reloadBooks() },
+                    enabled = !uiState.isLoading && uiState.folderUri != null
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Refresh,
+                        contentDescription = "Reload Books",
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                }
             }
             
             Text(
@@ -337,20 +393,32 @@ fun SettingsScreen(viewModel: MainViewModel, onBack: () -> Unit) {
             Text("Playback Settings:", style = MaterialTheme.typography.titleMedium)
             Spacer(modifier = Modifier.height(8.dp))
             
-            var rewindSecondsText by remember { mutableStateOf(uiState.rewindForwardSeconds.toString()) }
-            
-            OutlinedTextField(
-                value = rewindSecondsText,
-                onValueChange = { 
-                    rewindSecondsText = it
-                    it.toIntOrNull()?.let { seconds ->
-                        viewModel.setRewindForwardSeconds(seconds)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text("Rewind/Forward step", style = MaterialTheme.typography.bodyMedium)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = { 
+                        viewModel.setRewindForwardSeconds((uiState.rewindForwardSeconds - 10).coerceAtLeast(10))
+                    }) {
+                        Icon(Icons.Default.Remove, contentDescription = "Decrease")
                     }
-                },
-                label = { Text("Rewind/Forward seconds") },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                modifier = Modifier.fillMaxWidth()
-            )
+                    Text(
+                        text = "${uiState.rewindForwardSeconds}s",
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.widthIn(min = 48.dp),
+                        textAlign = TextAlign.Center
+                    )
+                    IconButton(onClick = { 
+                        viewModel.setRewindForwardSeconds(uiState.rewindForwardSeconds + 10)
+                    }) {
+                        Icon(Icons.Default.Add, contentDescription = "Increase")
+                    }
+                }
+            }
             
             HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
             
@@ -379,82 +447,49 @@ fun SettingsScreen(viewModel: MainViewModel, onBack: () -> Unit) {
                         }
                     }
                     items(uiState.books) { book ->
-                        val isSelected = book.uri == uiState.currentBook?.uri
+                        val isSelected = book.uri.toString() == uiState.currentBook?.uri.toString()
                         
-                        Box(
+                        ListItem(
+                            headlineContent = { 
+                                Text(
+                                    text = book.author ?: "Unknown Author",
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            },
+                            supportingContent = {
+                                Text(
+                                    text = book.title ?: book.name,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    style = MaterialTheme.typography.bodySmall
+                                )
+                            },
+                            leadingContent = {
+                                Icon(
+                                    imageVector = if (isSelected) Icons.Default.PlayArrow else Icons.Filled.AutoStories,
+                                    contentDescription = null,
+                                    tint = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
+                                )
+                            },
+                            trailingContent = {
+                                IconButton(onClick = { 
+                                    bookToDelete = book
+                                    showDeleteDialog = true
+                                }) {
+                                    Icon(Icons.Default.Delete, contentDescription = "Remove from list")
+                                }
+                            },
+                            colors = ListItemDefaults.colors(
+                                containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent
+                            ),
                             modifier = Modifier
-                                .fillMaxWidth()
-                                .height(IntrinsicSize.Min)
                                 .clip(RoundedCornerShape(12.dp))
-                                .background(
-                                    if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.8f)
-                                    else Color.Transparent
-                                )
-                        ) {
-                            if (isSelected) {
-                                Box(
-                                    modifier = Modifier
-                                        .align(Alignment.CenterStart)
-                                        .width(4.dp)
-                                        .fillMaxHeight()
-                                        .padding(vertical = 12.dp)
-                                        .clip(RoundedCornerShape(2.dp))
-                                        .background(MaterialTheme.colorScheme.primary)
-                                )
-                            }
-                            
-                            ListItem(
-                                headlineContent = { 
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Text(
-                                            text = book.author ?: "Unknown Author",
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis,
-                                            fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.Normal,
-                                            color = if (isSelected) MaterialTheme.colorScheme.primary else Color.Unspecified
-                                        )
-                                    }
-                                },
-                                supportingContent = {
-                                    Text(
-                                        text = book.title ?: book.name,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis,
-                                        style = MaterialTheme.typography.bodySmall,
-                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
-                                    )
-                                },
-                                leadingContent = {
-                                    Icon(
-                                        imageVector = if (isSelected) Icons.Default.PlayArrow else Icons.Default.Face,
-                                        contentDescription = null,
-                                        tint = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
-                                    )
-                                },
-                                trailingContent = {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        if (isSelected) {
-                                            Icon(
-                                                imageVector = Icons.Default.Check,
-                                                contentDescription = "Selected",
-                                                tint = MaterialTheme.colorScheme.primary,
-                                                modifier = Modifier.padding(end = 8.dp)
-                                            )
-                                        }
-                                        IconButton(onClick = { viewModel.removeBook(book) }) {
-                                            Icon(Icons.Default.Delete, contentDescription = "Remove from list")
-                                        }
-                                    }
-                                },
-                                colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                                modifier = Modifier
-                                    .padding(start = if (isSelected) 4.dp else 0.dp)
-                                    .clickable { 
-                                        viewModel.selectBook(book)
-                                        onBack()
-                                    }
-                            )
-                        }
+                                .clickable {
+                                    viewModel.selectBook(book)
+                                    onBack()
+                                }
+                        )
                     }
                 }
             }
