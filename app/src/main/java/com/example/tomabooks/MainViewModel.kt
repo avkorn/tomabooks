@@ -25,6 +25,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
+import androidx.core.net.toUri
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val repository = SettingsRepository(application)
@@ -46,12 +47,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val duration: Long = 0L,
         val chapterTitle: String? = null,
         val bookTitle: String? = null,
-        val author: String? = null
+        val author: String? = null,
+        val rewindForwardSeconds: Int = 20
     )
 
     init {
         viewModelScope.launch {
             val savedUriString = repository.folderUri.first()
+            val rewindSeconds = repository.rewindForwardSeconds.first()
+            _uiState.value = _uiState.value.copy(rewindForwardSeconds = rewindSeconds)
+            
             if (savedUriString != null) {
                 val uri = Uri.parse(savedUriString)
                 _uiState.value = _uiState.value.copy(folderUri = uri)
@@ -87,10 +92,71 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
             override fun onPlaybackStateChanged(playbackState: Int) {
                 if (playbackState == Player.STATE_READY) {
-                    _uiState.value = _uiState.value.copy(duration = player.duration)
+                    _uiState.value = _uiState.value.copy(
+                        duration = player.duration,
+                        currentPosition = player.currentPosition
+                    )
+                } else if (playbackState == Player.STATE_ENDED) {
+                    playNextBook()
                 }
             }
         })
+    }
+
+    private fun playNextBook() {
+        val books = _uiState.value.books
+        val currentBook = _uiState.value.currentBook ?: return
+        val currentIndex = books.indexOfFirst { it.uri == currentBook.uri }
+        
+        if (currentIndex != -1) {
+            // Reset position for the book that just finished
+            viewModelScope.launch {
+                repository.saveLastPlayback(currentBook.uri.toString(), 0L)
+            }
+            
+            if (currentIndex < books.size - 1) {
+                val nextBook = books[currentIndex + 1]
+                selectBook(nextBook)
+            }
+        }
+    }
+
+    fun playPreviousBook() {
+        val books = _uiState.value.books
+        val currentBook = _uiState.value.currentBook ?: return
+        val currentIndex = books.indexOfFirst { it.uri == currentBook.uri }
+        
+        if (currentIndex > 0) {
+            val prevBook = books[currentIndex - 1]
+            selectBook(prevBook)
+        } else {
+            seekTo(0L)
+        }
+    }
+
+    fun rewind() {
+        val newPos = (player.currentPosition - _uiState.value.rewindForwardSeconds * 1000).coerceAtLeast(0L)
+        seekTo(newPos)
+    }
+
+    fun forward() {
+        val newPos = (player.currentPosition + _uiState.value.rewindForwardSeconds * 1000).coerceAtMost(player.duration)
+        seekTo(newPos)
+    }
+
+    fun seekToStart() {
+        seekTo(0L)
+    }
+
+    fun seekToEnd() {
+        playNextBook()
+    }
+
+    fun setRewindForwardSeconds(seconds: Int) {
+        viewModelScope.launch {
+            repository.saveRewindForwardSeconds(seconds)
+            _uiState.value = _uiState.value.copy(rewindForwardSeconds = seconds)
+        }
     }
 
     private suspend fun restorePlaybackState() {
@@ -149,6 +215,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun reloadBooks() {
+        val uri = _uiState.value.folderUri ?: return
+        viewModelScope.launch {
+            loadBooksFromFolderSuspend(uri)
+        }
+    }
+
     private suspend fun loadBooksFromSavedList(): Boolean {
         val savedBooksJson = repository.booksList.first() ?: return false
         return try {
@@ -158,12 +231,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 val obj = jsonArray.getJSONObject(i)
                 books.add(Book(
                     name = obj.getString("name"),
-                    uri = Uri.parse(obj.getString("uri")),
+                    uri = obj.getString("uri").toUri(),
                     title = obj.optString("title", null).takeIf { it != "null" },
                     author = obj.optString("author", null).takeIf { it != "null" }
                 ))
             }
-            _uiState.value = _uiState.value.copy(books = books)
+            val sortedBooks = sortBooks(books)
+            _uiState.value = _uiState.value.copy(books = sortedBooks)
             true
         } catch (e: Exception) {
             false
@@ -178,11 +252,20 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             if (root != null) {
                 findM4bFilesRecursive(root, list)
             }
-            list
+            sortBooks(list)
         }
         _uiState.value = _uiState.value.copy(books = books, isLoading = false)
         saveBooks(books)
         return books.isNotEmpty()
+    }
+
+    private fun sortBooks(books: List<Book>): List<Book> {
+        return books.sortedWith(
+            compareBy(
+                { it.author?.lowercase() ?: "zzzz" },
+                { it.title?.lowercase() ?: it.name.lowercase() }
+            )
+        )
     }
 
     private fun findM4bFilesRecursive(directory: DocumentFile, books: MutableList<Book>) {
@@ -209,8 +292,23 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun removeBook(book: Book) {
+        val isCurrent = book.uri == _uiState.value.currentBook?.uri
+        if (isCurrent) {
+            player.stop()
+        }
+        
         val newList = _uiState.value.books.filter { it.uri != book.uri }
-        _uiState.value = _uiState.value.copy(books = newList)
+        _uiState.value = _uiState.value.copy(
+            books = newList,
+            currentBook = if (isCurrent) null else _uiState.value.currentBook,
+            artwork = if (isCurrent) null else _uiState.value.artwork,
+            bookTitle = if (isCurrent) null else _uiState.value.bookTitle,
+            author = if (isCurrent) null else _uiState.value.author,
+            chapterTitle = if (isCurrent) null else _uiState.value.chapterTitle,
+            isPlaying = if (isCurrent) false else _uiState.value.isPlaying,
+            currentPosition = if (isCurrent) 0L else _uiState.value.currentPosition,
+            duration = if (isCurrent) 0L else _uiState.value.duration
+        )
         saveBooks(newList)
     }
 
@@ -249,7 +347,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             artwork = null,
             bookTitle = book.title,
             author = book.author,
-            chapterTitle = null
+            chapterTitle = null,
+            currentPosition = 0L,
+            duration = 0L
         )
         
         loadMetadataManually(book)

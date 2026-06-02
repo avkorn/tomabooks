@@ -14,22 +14,32 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Face
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.SkipPrevious
+import androidx.compose.material.icons.filled.SkipNext
+import androidx.compose.material.icons.filled.FastRewind
+import androidx.compose.material.icons.filled.FastForward
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -112,8 +122,9 @@ fun MainScreen(viewModel: MainViewModel, onNavigateToSettings: () -> Unit) {
             Spacer(modifier = Modifier.height(32.dp))
 
             // Book Title (Metadata)
+            val displayName = uiState.bookTitle ?: if (uiState.currentBook != null) "Loading metadata..." else "No book selected"
             Text(
-                text = uiState.bookTitle ?: if (uiState.currentBook != null) "Loading metadata..." else "No book selected",
+                text = displayName,
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold,
                 maxLines = 2,
@@ -152,7 +163,7 @@ fun MainScreen(viewModel: MainViewModel, onNavigateToSettings: () -> Unit) {
             // Progress Section
             Column(modifier = Modifier.fillMaxWidth()) {
                 Slider(
-                    value = uiState.currentPosition.toFloat(),
+                    value = uiState.currentPosition.LongToFloat(),
                     onValueChange = { viewModel.seekTo(it.toLong()) },
                     valueRange = 0f..(uiState.duration.coerceAtLeast(1L).toFloat()),
                     modifier = Modifier.fillMaxWidth()
@@ -174,19 +185,64 @@ fun MainScreen(viewModel: MainViewModel, onNavigateToSettings: () -> Unit) {
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // Play/Pause Control
-            Button(
-                onClick = { viewModel.playPause() },
-                modifier = Modifier.size(width = 120.dp, height = 56.dp),
-                shape = RoundedCornerShape(28.dp)
+            // Playback Controls
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(if (uiState.isPlaying) "Pause" else "Play")
+                // To the start
+                IconButton(onClick = { viewModel.seekToStart() }) {
+                    Icon(Icons.Filled.SkipPrevious, contentDescription = "To the start", modifier = Modifier.size(32.dp))
+                }
+
+                // Rewind N seconds
+                Box(contentAlignment = Alignment.Center) {
+                    IconButton(onClick = { viewModel.rewind() }) {
+                        Icon(Icons.Filled.FastRewind, contentDescription = "Rewind", modifier = Modifier.size(40.dp))
+                    }
+                    Text(
+                        text = uiState.rewindForwardSeconds.toString(),
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(top = 4.dp)
+                    )
+                }
+
+                // Play/Pause Control
+                Button(
+                    onClick = { viewModel.playPause() },
+                    modifier = Modifier.size(width = 100.dp, height = 56.dp),
+                    shape = RoundedCornerShape(28.dp)
+                ) {
+                    Text(if (uiState.isPlaying) "Pause" else "Play")
+                }
+
+                // Forward N seconds
+                Box(contentAlignment = Alignment.Center) {
+                    IconButton(onClick = { viewModel.forward() }) {
+                        Icon(Icons.Filled.FastForward, contentDescription = "Forward", modifier = Modifier.size(40.dp))
+                    }
+                    Text(
+                        text = uiState.rewindForwardSeconds.toString(),
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(top = 4.dp)
+                    )
+                }
+
+                // To the end (next book)
+                IconButton(onClick = { viewModel.seekToEnd() }) {
+                    Icon(Icons.Filled.SkipNext, contentDescription = "To the end", modifier = Modifier.size(32.dp))
+                }
             }
             
             Spacer(modifier = Modifier.height(32.dp))
         }
     }
 }
+
+fun Long.LongToFloat(): Float = this.toFloat()
 
 fun formatTime(ms: Long): String {
     val totalSeconds = ms / 1000
@@ -246,10 +302,42 @@ fun SettingsScreen(viewModel: MainViewModel, onBack: () -> Unit) {
                 }
             }
             
+            Spacer(modifier = Modifier.height(8.dp))
+            
+            Button(
+                onClick = { viewModel.reloadBooks() },
+                modifier = Modifier.fillMaxWidth(),
+                enabled = !uiState.isLoading && uiState.folderUri != null,
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
+            ) {
+                Text("Reload Books")
+            }
+            
             Text(
                 text = "Current folder: ${uiState.folderUri?.path ?: "Not selected"}",
                 style = MaterialTheme.typography.bodySmall,
                 modifier = Modifier.padding(vertical = 8.dp)
+            )
+
+            HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
+
+            // Rewind/Forward seconds setting
+            Text("Playback Settings:", style = MaterialTheme.typography.titleMedium)
+            Spacer(modifier = Modifier.height(8.dp))
+            
+            var rewindSecondsText by remember { mutableStateOf(uiState.rewindForwardSeconds.toString()) }
+            
+            OutlinedTextField(
+                value = rewindSecondsText,
+                onValueChange = { 
+                    rewindSecondsText = it
+                    it.toIntOrNull()?.let { seconds ->
+                        viewModel.setRewindForwardSeconds(seconds)
+                    }
+                },
+                label = { Text("Rewind/Forward seconds") },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                modifier = Modifier.fillMaxWidth()
             )
             
             HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
@@ -265,7 +353,10 @@ fun SettingsScreen(viewModel: MainViewModel, onBack: () -> Unit) {
                     CircularProgressIndicator()
                 }
             } else {
-                LazyColumn(modifier = Modifier.weight(1f)) {
+                LazyColumn(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
                     if (uiState.books.isEmpty()) {
                         item {
                             Text(
@@ -276,39 +367,82 @@ fun SettingsScreen(viewModel: MainViewModel, onBack: () -> Unit) {
                         }
                     }
                     items(uiState.books) { book ->
-                        ListItem(
-                            headlineContent = { 
-                                Text(
-                                    text = book.title ?: book.name,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                ) 
-                            },
-                            supportingContent = {
-                                if (!book.author.isNullOrEmpty()) {
-                                    Text(
-                                        text = book.author!!,
-                                        style = MaterialTheme.typography.bodySmall
-                                    )
-                                }
-                            },
-                            leadingContent = {
-                                Icon(
-                                    imageVector = Icons.Default.Face,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary
+                        val isSelected = book.uri == uiState.currentBook?.uri
+                        
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(IntrinsicSize.Min)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(
+                                    if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.8f)
+                                    else Color.Transparent
                                 )
-                            },
-                            trailingContent = {
-                                IconButton(onClick = { viewModel.removeBook(book) }) {
-                                    Icon(Icons.Default.Delete, contentDescription = "Remove from list")
-                                }
-                            },
-                            modifier = Modifier.clickable { 
-                                viewModel.selectBook(book)
-                                onBack()
+                        ) {
+                            if (isSelected) {
+                                Box(
+                                    modifier = Modifier
+                                        .align(Alignment.CenterStart)
+                                        .width(4.dp)
+                                        .fillMaxHeight()
+                                        .padding(vertical = 12.dp)
+                                        .clip(RoundedCornerShape(2.dp))
+                                        .background(MaterialTheme.colorScheme.primary)
+                                )
                             }
-                        )
+                            
+                            ListItem(
+                                headlineContent = { 
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text(
+                                            text = book.author ?: "Unknown Author",
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                            fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.Normal,
+                                            color = if (isSelected) MaterialTheme.colorScheme.primary else Color.Unspecified
+                                        )
+                                    }
+                                },
+                                supportingContent = {
+                                    Text(
+                                        text = book.title ?: book.name,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                                    )
+                                },
+                                leadingContent = {
+                                    Icon(
+                                        imageVector = if (isSelected) Icons.Default.PlayArrow else Icons.Default.Face,
+                                        contentDescription = null,
+                                        tint = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
+                                    )
+                                },
+                                trailingContent = {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        if (isSelected) {
+                                            Icon(
+                                                imageVector = Icons.Default.Check,
+                                                contentDescription = "Selected",
+                                                tint = MaterialTheme.colorScheme.primary,
+                                                modifier = Modifier.padding(end = 8.dp)
+                                            )
+                                        }
+                                        IconButton(onClick = { viewModel.removeBook(book) }) {
+                                            Icon(Icons.Default.Delete, contentDescription = "Remove from list")
+                                        }
+                                    }
+                                },
+                                colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                                modifier = Modifier
+                                    .padding(start = if (isSelected) 4.dp else 0.dp)
+                                    .clickable { 
+                                        viewModel.selectBook(book)
+                                        onBack()
+                                    }
+                            )
+                        }
                     }
                 }
             }
