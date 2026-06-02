@@ -20,12 +20,13 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Face
+import androidx.compose.material.icons.filled.FastForward
+import androidx.compose.material.icons.filled.FastRewind
+import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material.icons.filled.SkipNext
-import androidx.compose.material.icons.filled.FastRewind
-import androidx.compose.material.icons.filled.FastForward
+import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -189,51 +190,62 @@ fun MainScreen(viewModel: MainViewModel, onNavigateToSettings: () -> Unit) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceEvenly,
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.Top
             ) {
                 // To the start
-                IconButton(onClick = { viewModel.seekToStart() }) {
-                    Icon(Icons.Filled.SkipPrevious, contentDescription = "To the start", modifier = Modifier.size(32.dp))
+                Box(modifier = Modifier.height(56.dp), contentAlignment = Alignment.Center) {
+                    IconButton(onClick = { viewModel.seekToStart() }) {
+                        Icon(Icons.Default.SkipPrevious, contentDescription = "To the start", modifier = Modifier.size(32.dp))
+                    }
                 }
 
                 // Rewind N seconds
-                Box(contentAlignment = Alignment.Center) {
-                    IconButton(onClick = { viewModel.rewind() }) {
-                        Icon(Icons.Filled.FastRewind, contentDescription = "Rewind", modifier = Modifier.size(40.dp))
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Box(modifier = Modifier.height(56.dp), contentAlignment = Alignment.Center) {
+                        IconButton(onClick = { viewModel.rewind() }) {
+                            Icon(Icons.Default.FastRewind, contentDescription = "Rewind", modifier = Modifier.size(40.dp))
+                        }
                     }
                     Text(
                         text = uiState.rewindForwardSeconds.toString(),
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(top = 4.dp)
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold
                     )
                 }
 
                 // Play/Pause Control
                 Button(
                     onClick = { viewModel.playPause() },
-                    modifier = Modifier.size(width = 100.dp, height = 56.dp),
-                    shape = RoundedCornerShape(28.dp)
+                    modifier = Modifier.size(width = 72.dp, height = 56.dp),
+                    shape = RoundedCornerShape(28.dp),
+                    contentPadding = PaddingValues(0.dp)
                 ) {
-                    Text(if (uiState.isPlaying) "Pause" else "Play")
+                    Icon(
+                        imageVector = if (uiState.isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                        contentDescription = if (uiState.isPlaying) "Pause" else "Play",
+                        modifier = Modifier.size(36.dp)
+                    )
                 }
 
                 // Forward N seconds
-                Box(contentAlignment = Alignment.Center) {
-                    IconButton(onClick = { viewModel.forward() }) {
-                        Icon(Icons.Filled.FastForward, contentDescription = "Forward", modifier = Modifier.size(40.dp))
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Box(modifier = Modifier.height(56.dp), contentAlignment = Alignment.Center) {
+                        IconButton(onClick = { viewModel.forward() }) {
+                            Icon(Icons.Default.FastForward, contentDescription = "Forward", modifier = Modifier.size(40.dp))
+                        }
                     }
                     Text(
                         text = uiState.rewindForwardSeconds.toString(),
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(top = 4.dp)
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold
                     )
                 }
 
                 // To the end (next book)
-                IconButton(onClick = { viewModel.seekToEnd() }) {
-                    Icon(Icons.Filled.SkipNext, contentDescription = "To the end", modifier = Modifier.size(32.dp))
+                Box(modifier = Modifier.height(56.dp), contentAlignment = Alignment.Center) {
+                    IconButton(onClick = { viewModel.seekToEnd() }) {
+                        Icon(Icons.Default.SkipNext, contentDescription = "To the end", modifier = Modifier.size(32.dp))
+                    }
                 }
             }
             
