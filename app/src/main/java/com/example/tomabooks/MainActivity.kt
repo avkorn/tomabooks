@@ -148,19 +148,6 @@ fun MainScreen(viewModel: MainViewModel, onNavigateToSettings: () -> Unit) {
                 )
             }
 
-            // Chapter Title (Metadata)
-            if (!uiState.chapterTitle.isNullOrEmpty()) {
-                Text(
-                    text = uiState.chapterTitle!!,
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.tertiary,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.padding(top = 12.dp)
-                )
-            }
-
             Spacer(modifier = Modifier.weight(1f))
 
             // Progress Section

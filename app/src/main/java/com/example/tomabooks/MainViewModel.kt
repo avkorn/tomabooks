@@ -45,7 +45,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val artwork: Bitmap? = null,
         val currentPosition: Long = 0L,
         val duration: Long = 0L,
-        val chapterTitle: String? = null,
         val bookTitle: String? = null,
         val author: String? = null,
         val rewindForwardSeconds: Int = 20
@@ -84,7 +83,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 
                 _uiState.value = _uiState.value.copy(
                     artwork = bitmap ?: _uiState.value.artwork,
-                    chapterTitle = mediaMetadata.title?.toString(),
                     bookTitle = mediaMetadata.albumTitle?.toString() ?: mediaMetadata.displayTitle?.toString() ?: _uiState.value.bookTitle,
                     author = mediaMetadata.artist?.toString() ?: mediaMetadata.albumArtist?.toString() ?: _uiState.value.author
                 )
@@ -304,7 +302,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             artwork = if (isCurrent) null else _uiState.value.artwork,
             bookTitle = if (isCurrent) null else _uiState.value.bookTitle,
             author = if (isCurrent) null else _uiState.value.author,
-            chapterTitle = if (isCurrent) null else _uiState.value.chapterTitle,
             isPlaying = if (isCurrent) false else _uiState.value.isPlaying,
             currentPosition = if (isCurrent) 0L else _uiState.value.currentPosition,
             duration = if (isCurrent) 0L else _uiState.value.duration
@@ -347,7 +344,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             artwork = null,
             bookTitle = book.title,
             author = book.author,
-            chapterTitle = null,
             currentPosition = 0L,
             duration = 0L
         )
