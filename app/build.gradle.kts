@@ -1,3 +1,4 @@
+import com.android.build.api.variant.impl.VariantOutputImpl
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
@@ -37,7 +38,16 @@ android {
         compose = true
     }
 }
-
+androidComponents {
+    onVariants { variant ->
+        variant.outputs.forEach { output ->
+            if (output is VariantOutputImpl) {
+                output.outputFileName =
+                    "TomaBooks-v${variant.outputs.first().versionName.get()}-${variant.outputs.first().versionCode.get()}-${variant.buildType}.apk"
+            }
+        }
+    }
+}
 dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
