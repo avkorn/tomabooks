@@ -12,18 +12,27 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ArrowDropDown
-import androidx.compose.material.icons.filled.ArrowDropUp
 import androidx.compose.material.icons.filled.AutoStories
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Face
 import androidx.compose.material.icons.filled.FastForward
@@ -35,17 +44,40 @@ import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.ListItem
+import androidx.compose.material3.ListItemDefaults
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Slider
+import androidx.compose.material3.Switch
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.minimumInteractiveComponentSize
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.PlatformTextStyle
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -99,13 +131,17 @@ fun StandardMainScreen(
     viewModel: MainViewModel,
     onNavigateToSettings: () -> Unit
 ) {
+    val fontScale = LocalDensity.current.fontScale
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(R.string.app_name)) },
                 actions = {
                     IconButton(onClick = onNavigateToSettings) {
-                        Icon(Icons.Default.Settings, contentDescription = stringResource(R.string.settings))
+                        Icon(
+                            Icons.Default.Settings,
+                            contentDescription = stringResource(R.string.settings)
+                        )
                     }
                 }
             )
@@ -147,12 +183,21 @@ fun StandardMainScreen(
             Spacer(modifier = Modifier.height(32.dp))
 
             // Book Title (Metadata)
+            val titleStyle = MaterialTheme.typography.headlineMedium
             val displayName = uiState.bookTitle
-                ?: if (uiState.currentBook != null) stringResource(R.string.loading_metadata) else stringResource(R.string.no_book_selected)
+                ?: if (uiState.currentBook != null) stringResource(R.string.loading_metadata) else stringResource(
+                    R.string.no_book_selected
+                )
             Text(
                 text = displayName,
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold,
+//                style = MaterialTheme.typography.headlineMedium,
+                style = titleStyle.copy(
+                    fontSize = minOf((titleStyle.fontSize * fontScale).value, 20f).sp,
+                    fontWeight = FontWeight.Bold,
+                    platformStyle = PlatformTextStyle(includeFontPadding = false),
+                    lineHeight = minOf((titleStyle.fontSize * fontScale).value, 20f).sp * 0.9f,
+
+                    ),
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
                 textAlign = TextAlign.Center
@@ -160,9 +205,14 @@ fun StandardMainScreen(
 
             // Author (Metadata)
             if (!uiState.author.isNullOrEmpty()) {
+                val authorStyle = MaterialTheme.typography.headlineSmall
                 Text(
                     text = uiState.author,
-                    style = MaterialTheme.typography.titleMedium,
+                    //style = MaterialTheme.typography.titleMedium,
+                    style = authorStyle.copy(
+                        fontSize = minOf((authorStyle.fontSize * fontScale).value, 20f).sp
+
+                    ),
                     color = MaterialTheme.colorScheme.secondary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -242,7 +292,9 @@ fun StandardMainScreen(
                 ) {
                     Icon(
                         imageVector = if (uiState.isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                        contentDescription = if (uiState.isPlaying) stringResource(R.string.pause) else stringResource(R.string.play),
+                        contentDescription = if (uiState.isPlaying) stringResource(R.string.pause) else stringResource(
+                            R.string.play
+                        ),
                         modifier = Modifier.size(36.dp)
                     )
                 }
@@ -289,6 +341,8 @@ fun BlindMainScreen(
     viewModel: MainViewModel,
     onNavigateToSettings: () -> Unit
 ) {
+    val fontScale = LocalDensity.current.fontScale
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -297,7 +351,7 @@ fun BlindMainScreen(
                     Box(
                         modifier = Modifier
                             .minimumInteractiveComponentSize()
-                            .size(48.dp)
+                            .size(32.dp)
                             .combinedClickable(
                                 onClick = { /* Ignore single click */ },
                                 onDoubleClick = onNavigateToSettings
@@ -318,31 +372,49 @@ fun BlindMainScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
-                .padding(24.dp),
+                .padding(start = 24.dp, end = 24.dp, top = 0.dp, bottom = 24.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             // Author and Book Name in large text
+            val authorStyle = MaterialTheme.typography.headlineSmall
+            val titleStyle = MaterialTheme.typography.headlineMedium
             Text(
                 text = uiState.author ?: "",
-                style = MaterialTheme.typography.headlineSmall,
-                textAlign = TextAlign.Center,
+//                style = MaterialTheme.typography.headlineSmall,
+                style = authorStyle.copy(
+                    fontSize = minOf((authorStyle.fontSize * fontScale).value, 20f).sp
+                ),
+                textAlign = TextAlign.Start,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.fillMaxWidth()
             )
             Text(
                 text = uiState.bookTitle
-                    ?: if (uiState.currentBook != null) stringResource(R.string.loading_metadata) else stringResource(R.string.no_book_selected),
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold,
-                textAlign = TextAlign.Center,
+                    ?: if (uiState.currentBook != null) stringResource(R.string.loading_metadata) else stringResource(
+                        R.string.no_book_selected
+                    ),
+//                style = MaterialTheme.typography.headlineMedium,
+                style = titleStyle.copy(
+                    fontSize = minOf((titleStyle.fontSize * fontScale).value, 20f).sp,
+                    fontWeight = FontWeight.Bold,
+                    platformStyle = PlatformTextStyle(includeFontPadding = false),
+                    lineHeight = minOf((titleStyle.fontSize * fontScale).value, 20f).sp * 0.9f,
+                ),
+                textAlign = TextAlign.Start,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.fillMaxWidth()
             )
 
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
             // Read-only Progress Section
-            Column(modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp)) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp)
+            ) {
                 Slider(
                     value = uiState.currentPosition.longToFloat(),
                     onValueChange = { /* Read only */ },
@@ -381,7 +453,9 @@ fun BlindMainScreen(
             ) {
                 Icon(
                     imageVector = if (uiState.isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                    contentDescription = if (uiState.isPlaying) stringResource(R.string.pause) else stringResource(R.string.play),
+                    contentDescription = if (uiState.isPlaying) stringResource(R.string.pause) else stringResource(
+                        R.string.play
+                    ),
                     modifier = Modifier.fillMaxSize(0.7f),
                     tint = Color.White
                 )
@@ -427,7 +501,12 @@ fun SettingsScreen(viewModel: MainViewModel, onBack: () -> Unit) {
             title = { Text(stringResource(R.string.remove_book)) },
             text = {
                 Column {
-                    Text(stringResource(R.string.remove_book_confirmation, bookToDelete?.title ?: bookToDelete?.name ?: ""))
+                    Text(
+                        stringResource(
+                            R.string.remove_book_confirmation,
+                            bookToDelete?.title ?: bookToDelete?.name ?: ""
+                        )
+                    )
                     Spacer(modifier = Modifier.height(16.dp))
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
@@ -455,7 +534,7 @@ fun SettingsScreen(viewModel: MainViewModel, onBack: () -> Unit) {
                 }
             },
             dismissButton = {
-                TextButton(onClick = { 
+                TextButton(onClick = {
                     showDeleteDialog = false
                     bookToDelete = null
                 }) {
@@ -471,7 +550,10 @@ fun SettingsScreen(viewModel: MainViewModel, onBack: () -> Unit) {
                 title = { Text(stringResource(R.string.settings)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = stringResource(R.string.back)
+                        )
                     }
                 }
             )
@@ -519,7 +601,10 @@ fun SettingsScreen(viewModel: MainViewModel, onBack: () -> Unit) {
             }
 
             Text(
-                text = stringResource(R.string.current_folder, uiState.folderUri?.path ?: stringResource(R.string.not_selected)),
+                text = stringResource(
+                    R.string.current_folder,
+                    uiState.folderUri?.path ?: stringResource(R.string.not_selected)
+                ),
                 style = MaterialTheme.typography.bodySmall,
                 modifier = Modifier.padding(vertical = 8.dp)
             )
@@ -535,7 +620,10 @@ fun SettingsScreen(viewModel: MainViewModel, onBack: () -> Unit) {
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Text(stringResource(R.string.rewind_forward_step), style = MaterialTheme.typography.bodyMedium)
+                Text(
+                    stringResource(R.string.rewind_forward_step),
+                    style = MaterialTheme.typography.bodyMedium
+                )
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = {
                         viewModel.setRewindForwardSeconds(
@@ -544,7 +632,10 @@ fun SettingsScreen(viewModel: MainViewModel, onBack: () -> Unit) {
                             )
                         )
                     }) {
-                        Icon(Icons.Default.Remove, contentDescription = stringResource(R.string.decrease))
+                        Icon(
+                            Icons.Default.Remove,
+                            contentDescription = stringResource(R.string.decrease)
+                        )
                     }
                     Text(
                         text = "${uiState.rewindForwardSeconds}s",
@@ -556,7 +647,10 @@ fun SettingsScreen(viewModel: MainViewModel, onBack: () -> Unit) {
                     IconButton(onClick = {
                         viewModel.setRewindForwardSeconds(uiState.rewindForwardSeconds + 10)
                     }) {
-                        Icon(Icons.Default.Add, contentDescription = stringResource(R.string.increase))
+                        Icon(
+                            Icons.Default.Add,
+                            contentDescription = stringResource(R.string.increase)
+                        )
                     }
                 }
             }
@@ -570,7 +664,10 @@ fun SettingsScreen(viewModel: MainViewModel, onBack: () -> Unit) {
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Column {
-                    Text(stringResource(R.string.blind_mode), style = MaterialTheme.typography.bodyLarge)
+                    Text(
+                        stringResource(R.string.blind_mode),
+                        style = MaterialTheme.typography.bodyLarge
+                    )
                     Text(
                         stringResource(R.string.blind_mode_desc),
                         style = MaterialTheme.typography.bodySmall

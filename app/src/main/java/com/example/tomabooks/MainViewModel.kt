@@ -1,7 +1,6 @@
 package com.example.tomabooks
 
 import android.app.Application
-import android.content.ComponentName
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
@@ -27,17 +26,13 @@ import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 import androidx.core.net.toUri
-import androidx.media3.session.MediaController
-import androidx.media3.session.SessionToken
-import com.google.common.util.concurrent.MoreExecutors
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val repository = SettingsRepository(application)
-//    private val player: ExoPlayer = ExoPlayer.Builder(application).build()
+    private val player: ExoPlayer = ExoPlayer.Builder(application).build()
 
     private val _uiState = MutableStateFlow(UiState())
     val uiState: StateFlow<UiState> = _uiState.asStateFlow()
-    private var controller: MediaController? = null
 
     private var positionUpdateJob: Job? = null
 
@@ -57,16 +52,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     )
 
     init {
-        val sessionToken =
-            SessionToken(application, ComponentName(application, PlaybackService::class.java))
-        val controllerFuture = MediaController.Builder(application, sessionToken).buildAsync()
-
-        controllerFuture.addListener({
-            // Now this 'controller' is the SAME player the widget sees
-            controller = controllerFuture.get()
-            // Update your UI state based on controller.isPlaying, etc.
-        }, MoreExecutors.directExecutor())
-
         viewModelScope.launch {
             repository.isBlindMode.collect { blindMode ->
                 _uiState.value = _uiState.value.copy(isBlindMode = blindMode)
@@ -77,7 +62,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val savedUriString = repository.folderUri.first()
             val rewindSeconds = repository.rewindForwardSeconds.first()
             _uiState.value = _uiState.value.copy(rewindForwardSeconds = rewindSeconds)
-            
+
             if (savedUriString != null) {
                 val uri = savedUriString.toUri()
                 _uiState.value = _uiState.value.copy(folderUri = uri)
@@ -87,7 +72,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
 
-        controller?.addListener(object : Player.Listener {
+        player.addListener(object : Player.Listener {
             override fun onIsPlayingChanged(isPlaying: Boolean) {
                 _uiState.value = _uiState.value.copy(isPlaying = isPlaying)
                 if (isPlaying) {
@@ -102,7 +87,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 val bitmap = mediaMetadata.artworkData?.let { data ->
                     BitmapFactory.decodeByteArray(data, 0, data.size)
                 }
-                
+
                 _uiState.value = _uiState.value.copy(
                     artwork = bitmap ?: _uiState.value.artwork,
                     bookTitle = mediaMetadata.albumTitle?.toString() ?: mediaMetadata.displayTitle?.toString() ?: _uiState.value.bookTitle,
@@ -113,8 +98,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             override fun onPlaybackStateChanged(playbackState: Int) {
                 if (playbackState == Player.STATE_READY) {
                     _uiState.value = _uiState.value.copy(
-                        duration = controller?.duration ?: 0L,
-                        currentPosition = controller?.currentPosition ?: 0L
+                        duration = player.duration,
+                        currentPosition = player.currentPosition
                     )
                 } else if (playbackState == Player.STATE_ENDED) {
                     playNextBook()
@@ -127,13 +112,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val books = _uiState.value.books
         val currentBook = _uiState.value.currentBook ?: return
         val currentIndex = books.indexOfFirst { it.uri.toString() == currentBook.uri.toString() }
-        
+
         if (currentIndex != -1) {
             // Reset position for the book that just finished
             viewModelScope.launch {
                 repository.saveLastPlayback(currentBook.uri.toString(), 0L)
             }
-            
+
             if (currentIndex < books.size - 1) {
                 val nextBook = books[currentIndex + 1]
                 selectBook(nextBook)
@@ -155,12 +140,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 //    }
 
     fun rewind() {
-        val newPos = ((controller?.currentPosition ?: 0) - _uiState.value.rewindForwardSeconds * 1000).coerceAtLeast(0L)
+        val newPos = (player.currentPosition - _uiState.value.rewindForwardSeconds * 1000).coerceAtLeast(0L)
         seekTo(newPos)
     }
 
     fun forward() {
-        val newPos = ((controller?.currentPosition ?: 0) + _uiState.value.rewindForwardSeconds * 1000).coerceAtMost(controller?.duration?: 0)
+        val newPos = (player.currentPosition + _uiState.value.rewindForwardSeconds * 1000).coerceAtMost(player.duration)
         seekTo(newPos)
     }
 
@@ -188,7 +173,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private suspend fun restorePlaybackState() {
         val lastBookUri = repository.lastBookUri.first() ?: return
         val lastPosition = repository.lastPosition.first()
-        
+
         val book = _uiState.value.books.find { it.uri.toString() == lastBookUri }
         if (book != null) {
             _uiState.value = _uiState.value.copy(
@@ -198,8 +183,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 author = book.author
             )
             loadMetadataManually(book)
-            controller?.setMediaItem(MediaItem.fromUri(book.uri), lastPosition)
-            controller?.prepare()
+            player.setMediaItem(MediaItem.fromUri(book.uri), lastPosition)
+            player.prepare()
         }
     }
 
@@ -207,7 +192,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         positionUpdateJob?.cancel()
         positionUpdateJob = viewModelScope.launch {
             while (isActive) {
-                val pos = controller?.currentPosition?:0
+                val pos = player.currentPosition
                 _uiState.value = _uiState.value.copy(currentPosition = pos)
                 if (pos / 1000 % 10 == 0L) {
                     savePlaybackState()
@@ -223,7 +208,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun savePlaybackState() {
         val currentBook = _uiState.value.currentBook ?: return
-        val currentPosition = controller?.currentPosition?:0
+        val currentPosition = player.currentPosition
         viewModelScope.launch {
             repository.saveLastPlayback(currentBook.uri.toString(), currentPosition)
         }
@@ -306,8 +291,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     retriever.setDataSource(getApplication(), file.uri)
                     title = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_TITLE)
                     author = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ALBUMARTIST) ?:
-                             retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ARTIST) ?:
-                             retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_AUTHOR)
+                            retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ARTIST) ?:
+                            retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_AUTHOR)
                 } catch (_: Exception) {
                 } finally {
                     retriever.release()
@@ -320,9 +305,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun removeBook(book: Book) {
         val isCurrent = book.uri.toString() == _uiState.value.currentBook?.uri.toString()
         if (isCurrent) {
-            controller?.stop()
+            player.stop()
         }
-        
+
         val newList = _uiState.value.books.filter { it.uri.toString() != book.uri.toString() }
         _uiState.value = _uiState.value.copy(
             books = newList,
@@ -353,30 +338,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun playPause() {
-//        if (player.isPlaying) {
-//            player.pause()
-//            savePlaybackState()
-//        } else {
-//            if (player.mediaItemCount == 0 && _uiState.value.books.isNotEmpty()) {
-//                val bookToPlay = _uiState.value.currentBook ?: _uiState.value.books[0]
-//                selectBook(bookToPlay)
-//            } else {
-//                player.play()
-//            }
-//        }
-            controller?.let {
-                if (it.isPlaying) {
-                    it.pause()
-                    savePlaybackState()
-                }else {
-                    if (it.mediaItemCount == 0 && _uiState.value.books.isNotEmpty()) {
-                        val bookToPlay = _uiState.value.currentBook ?: _uiState.value.books[0]
-                        selectBook(bookToPlay)
-                    } else {
-                        it.play()
-                    }
-                }
+        if (player.isPlaying) {
+            player.pause()
+            savePlaybackState()
+        } else {
+            if (player.mediaItemCount == 0 && _uiState.value.books.isNotEmpty()) {
+                val bookToPlay = _uiState.value.currentBook ?: _uiState.value.books[0]
+                selectBook(bookToPlay)
+            } else {
+                player.play()
             }
+        }
     }
 
     fun selectBook(book: Book) {
@@ -388,14 +360,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             currentPosition = 0L,
             duration = 0L
         )
-        
+
         loadMetadataManually(book)
 
-        controller?.let {
-            it.setMediaItem(MediaItem.fromUri(book.uri))
-            it.prepare()
-            it.play()
-        }
+        player.setMediaItem(MediaItem.fromUri(book.uri))
+        player.prepare()
+        player.play()
         savePlaybackState()
     }
 
@@ -409,9 +379,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 }
                 val title = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_TITLE)
                 val author = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ALBUMARTIST) ?:
-                             retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ARTIST) ?:
-                             retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_AUTHOR)
-                
+                retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ARTIST) ?:
+                retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_AUTHOR)
+
                 withContext(Dispatchers.Main) {
                     _uiState.value = _uiState.value.copy(
                         artwork = art ?: _uiState.value.artwork,
@@ -427,7 +397,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun seekTo(position: Long) {
-        controller?.seekTo(position)?:0
+        player.seekTo(position)
         _uiState.value = _uiState.value.copy(currentPosition = position)
         savePlaybackState()
     }
@@ -436,6 +406,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         super.onCleared()
         savePlaybackState()
         stopPositionUpdate()
-        controller?.release()
+        player.release()
     }
 }
