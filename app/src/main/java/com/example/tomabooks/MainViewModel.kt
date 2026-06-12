@@ -274,7 +274,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         return books.sortedWith(
             compareBy(
                 { it.author?.lowercase() ?: "яяяяяяя" },
-                { it.title?.lowercase() ?: it.name.lowercase() }
+                { it.name.lowercase() }
+//                { it.title?.lowercase() ?: it.name.lowercase() }
             )
         )
     }
