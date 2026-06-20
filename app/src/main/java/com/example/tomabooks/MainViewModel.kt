@@ -6,6 +6,8 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.media.MediaMetadataRetriever
 import android.net.Uri
+import android.provider.DocumentsContract
+import android.util.Log
 import androidx.documentfile.provider.DocumentFile
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -303,7 +305,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun removeBook(book: Book) {
+    fun removeBook(book: Book, deleteFromStorage: Boolean) {
         val isCurrent = book.uri.toString() == _uiState.value.currentBook?.uri.toString()
         if (isCurrent) {
             player.stop()
@@ -321,6 +323,25 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             duration = if (isCurrent) 0L else _uiState.value.duration
         )
         saveBooks(newList)
+
+        if (deleteFromStorage) {viewModelScope.launch(Dispatchers.IO) {
+            try {
+                // Use DocumentFile to resolve the URI.
+                // This is more robust than calling DocumentsContract directly.
+                val file = DocumentFile.fromSingleUri(getApplication(), book.uri)
+                if (file != null && file.exists()) {
+                    val deleted = file.delete()
+                    if (!deleted) {
+                        Log.w("MainViewModel", "Failed to delete file: ${book.uri}")
+                    }
+                } else {
+                    Log.w("MainViewModel", "File not found or already deleted: ${book.uri}")
+                }
+            } catch (e: Exception) {
+                Log.e("MainViewModel", "Error deleting file", e)
+            }
+        }
+        }
     }
 
     private fun saveBooks(books: List<Book>) {
