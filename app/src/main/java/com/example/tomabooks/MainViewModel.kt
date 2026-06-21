@@ -6,8 +6,8 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.media.MediaMetadataRetriever
 import android.net.Uri
-import android.provider.DocumentsContract
 import android.util.Log
+import androidx.core.net.toUri
 import androidx.documentfile.provider.DocumentFile
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -27,7 +27,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
-import androidx.core.net.toUri
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val repository = SettingsRepository(application)
@@ -37,6 +36,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val uiState: StateFlow<UiState> = _uiState.asStateFlow()
 
     private var positionUpdateJob: Job? = null
+
 
     data class UiState(
         val folderUri: Uri? = null,
@@ -50,7 +50,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val bookTitle: String? = null,
         val author: String? = null,
         val rewindForwardSeconds: Int = 20,
-        val isBlindMode: Boolean = false
+        val isBlindMode: Boolean = false,
+        val completedBooks: Set<String> = emptySet(), // Set of filenames
     )
 
     init {
@@ -92,8 +93,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
                 _uiState.value = _uiState.value.copy(
                     artwork = bitmap ?: _uiState.value.artwork,
-                    bookTitle = mediaMetadata.albumTitle?.toString() ?: mediaMetadata.displayTitle?.toString() ?: _uiState.value.bookTitle,
-                    author = mediaMetadata.artist?.toString() ?: mediaMetadata.albumArtist?.toString() ?: _uiState.value.author
+                    bookTitle = mediaMetadata.albumTitle?.toString()
+                        ?: mediaMetadata.displayTitle?.toString() ?: _uiState.value.bookTitle,
+                    author = mediaMetadata.artist?.toString()
+                        ?: mediaMetadata.albumArtist?.toString() ?: _uiState.value.author
                 )
             }
 
@@ -104,10 +107,20 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         currentPosition = player.currentPosition
                     )
                 } else if (playbackState == Player.STATE_ENDED) {
+                    _uiState.value.currentBook?.let { book ->
+                        toggleCompleted(book.name, true)
+                    }
                     playNextBook()
                 }
             }
         })
+
+        // Collect Completed Books from Repository
+        viewModelScope.launch {
+            repository.completedBooks.collect { completedSet ->
+                _uiState.value = _uiState.value.copy(completedBooks = completedSet)
+            }
+        }
     }
 
     private fun playNextBook() {
@@ -142,12 +155,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 //    }
 
     fun rewind() {
-        val newPos = (player.currentPosition - _uiState.value.rewindForwardSeconds * 1000).coerceAtLeast(0L)
+        val newPos =
+            (player.currentPosition - _uiState.value.rewindForwardSeconds * 1000).coerceAtLeast(0L)
         seekTo(newPos)
     }
 
     fun forward() {
-        val newPos = (player.currentPosition + _uiState.value.rewindForwardSeconds * 1000).coerceAtMost(player.duration)
+        val newPos =
+            (player.currentPosition + _uiState.value.rewindForwardSeconds * 1000).coerceAtMost(
+                player.duration
+            )
         seekTo(newPos)
     }
 
@@ -242,12 +259,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val books = mutableListOf<Book>()
             for (i in 0 until jsonArray.length()) {
                 val obj = jsonArray.getJSONObject(i)
-                books.add(Book(
-                    name = obj.getString("name"),
-                    uri = obj.getString("uri").toUri(),
-                    title = obj.optString("title").takeIf { it != "null" && it.isNotEmpty() },
-                    author = obj.optString("author").takeIf { it != "null" && it.isNotEmpty() },
-                ))
+                books.add(
+                    Book(
+                        name = obj.getString("name"),
+                        uri = obj.getString("uri").toUri(),
+                        title = obj.optString("title").takeIf { it != "null" && it.isNotEmpty() },
+                        author = obj.optString("author").takeIf { it != "null" && it.isNotEmpty() },
+                    )
+                )
             }
             val sortedBooks = sortBooks(books)
             _uiState.value = _uiState.value.copy(books = sortedBooks)
@@ -293,9 +312,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 try {
                     retriever.setDataSource(getApplication(), file.uri)
                     title = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_TITLE)
-                    author = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ALBUMARTIST) ?:
-                            retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ARTIST) ?:
-                            retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_AUTHOR)
+                    author =
+                        retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ALBUMARTIST)
+                            ?: retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ARTIST)
+                                    ?: retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_AUTHOR)
                 } catch (_: Exception) {
                 } finally {
                     retriever.release()
@@ -324,23 +344,24 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         )
         saveBooks(newList)
 
-        if (deleteFromStorage) {viewModelScope.launch(Dispatchers.IO) {
-            try {
-                // Use DocumentFile to resolve the URI.
-                // This is more robust than calling DocumentsContract directly.
-                val file = DocumentFile.fromSingleUri(getApplication(), book.uri)
-                if (file != null && file.exists()) {
-                    val deleted = file.delete()
-                    if (!deleted) {
-                        Log.w("MainViewModel", "Failed to delete file: ${book.uri}")
+        if (deleteFromStorage) {
+            viewModelScope.launch(Dispatchers.IO) {
+                try {
+                    // Use DocumentFile to resolve the URI.
+                    // This is more robust than calling DocumentsContract directly.
+                    val file = DocumentFile.fromSingleUri(getApplication(), book.uri)
+                    if (file != null && file.exists()) {
+                        val deleted = file.delete()
+                        if (!deleted) {
+                            Log.w("MainViewModel", "Failed to delete file: ${book.uri}")
+                        }
+                    } else {
+                        Log.w("MainViewModel", "File not found or already deleted: ${book.uri}")
                     }
-                } else {
-                    Log.w("MainViewModel", "File not found or already deleted: ${book.uri}")
+                } catch (e: Exception) {
+                    Log.e("MainViewModel", "Error deleting file", e)
                 }
-            } catch (e: Exception) {
-                Log.e("MainViewModel", "Error deleting file", e)
             }
-        }
         }
     }
 
@@ -400,9 +421,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
                 }
                 val title = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_TITLE)
-                val author = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ALBUMARTIST) ?:
-                retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ARTIST) ?:
-                retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_AUTHOR)
+                val author =
+                    retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ALBUMARTIST)
+                        ?: retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ARTIST)
+                        ?: retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_AUTHOR)
 
                 withContext(Dispatchers.Main) {
                     _uiState.value = _uiState.value.copy(
@@ -430,4 +452,19 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         stopPositionUpdate()
         player.release()
     }
+
+    // Function to handle the saving
+    fun toggleCompleted(fileName: String, forceMark: Boolean = false) {
+        viewModelScope.launch {
+            val currentSet = _uiState.value.completedBooks.toMutableSet()
+            if (forceMark) {
+                currentSet.add(fileName)
+            } else {
+                if (currentSet.contains(fileName)) currentSet.remove(fileName)
+                else currentSet.add(fileName)
+            }
+            repository.saveCompletedBooks(currentSet)
+        }
+    }
+
 }

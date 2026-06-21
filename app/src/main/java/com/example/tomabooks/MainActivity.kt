@@ -34,6 +34,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoStories
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Face
 import androidx.compose.material.icons.filled.FastForward
@@ -77,9 +78,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.PlatformTextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -351,6 +354,8 @@ fun BlindMainScreen(
     var lastClickTime by remember { mutableLongStateOf(0L) }
     var clickCount by remember { mutableIntStateOf(0) }
     val tripleClickThreshold = 500L // Time window (ms) to complete the next click
+
+    val haptic = LocalHapticFeedback.current // To provide physical feedback
     Scaffold(
         topBar = {
             TopAppBar(
@@ -359,29 +364,48 @@ fun BlindMainScreen(
                     Box(
                         modifier = Modifier
                             .minimumInteractiveComponentSize()
-                            .size(32.dp)
-                            .combinedClickable(
-                                onClick = { /* Ignore single click */ },
-                                onDoubleClick = onNavigateToSettings
-                            ),
-//                            .pointerInput(Unit) {
-//                                detectTapGestures(
-//                                    onTap = {
-//                                        val currentTime = System.currentTimeMillis()
-//                                        if (currentTime - lastClickTime < tripleClickThreshold) {
-//                                            clickCount++
-//                                        } else {
-//                                            clickCount = 1 // Reset if too much time passed
-//                                        }
-//                                        lastClickTime = currentTime
-//
-//                                        if (clickCount >= 3) {
+                            .size(80.dp)
+//                            .combinedClickable(
+//                                onClick = { /* Ignore single click */ },
+//                                onDoubleClick = onNavigateToSettings
+//                            ),
+                            .pointerInput(Unit) {
+//                                awaitPointerEventScope {
+//                                    while (true) {
+//                                        val event = awaitPointerEvent()
+//                                        // Only trigger if exactly 2 fingers are touching the settings icon
+//                                        if (event.changes.size == 2) {
+//                                            // Optional: Add haptic feedback so they know it worked
+//                                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
 //                                            onNavigateToSettings()
-//                                            clickCount = 0 // Reset after success
 //                                        }
 //                                    }
-//                                )
-//                            },
+//                                }
+                                detectTapGestures(
+                                    // 1. Triple click remains as a secondary shortcut
+                                    onTap = {
+                                        // You can keep your triple click logic here
+                                        // or leave it empty to force the Long Press
+                                        val currentTime = System.currentTimeMillis()
+                                        if (currentTime - lastClickTime < tripleClickThreshold) {
+                                            clickCount++
+                                        } else {
+                                            clickCount = 1 // Reset if too much time passed
+                                        }
+                                        lastClickTime = currentTime
+
+                                        if (clickCount >= 4) {
+                                            onNavigateToSettings()
+                                            clickCount = 0 // Reset after success
+                                        }
+                                    },
+//                                    // 2. The Sophisticated way: Long Press with Haptics
+//                                    onLongPress = {
+//                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+//                                        onNavigateToSettings()
+//                                    }
+                                )
+                            },
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
@@ -761,6 +785,8 @@ fun SettingsScreen(viewModel: MainViewModel, onBack: () -> Unit) {
                         items(uiState.books) { book ->
                             val isSelected =
                                 book.uri.toString() == uiState.currentBook?.uri.toString()
+                            // Check if this book is in the completed list
+                            val isCompleted = uiState.completedBooks.contains(book.name)
 
                             ListItem(
                                 headlineContent = {
@@ -772,12 +798,27 @@ fun SettingsScreen(viewModel: MainViewModel, onBack: () -> Unit) {
                                     )
                                 },
                                 supportingContent = {
-                                    Text(
-                                        text = book.title ?: book.name,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis,
-                                        style = MaterialTheme.typography.bodySmall
-                                    )
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        // ADDED: Show checkmark if completed
+                                        if (isCompleted) {
+                                            Icon(
+                                                imageVector = Icons.Default.CheckCircle,
+                                                contentDescription = null,
+                                                tint = Color(0xFF4CAF50), // Standard Green
+                                                modifier = Modifier
+                                                    .size(16.dp)
+                                                    .padding(end = 4.dp)
+                                            )
+                                        }
+                                        Text(
+                                            text = book.title ?: book.name,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            // Optional: Strike through or dim the text if completed
+                                            color = if (isCompleted) MaterialTheme.colorScheme.outline else Color.Unspecified
+                                        )
+                                    }
                                 },
                                 leadingContent = {
                                     Icon(
@@ -802,10 +843,16 @@ fun SettingsScreen(viewModel: MainViewModel, onBack: () -> Unit) {
                                 ),
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(12.dp))
-                                    .clickable {
-                                        viewModel.selectBook(book)
-                                        onBack()
-                                    }
+                                    .combinedClickable(
+                                        onClick = {
+                                            viewModel.selectBook(book)
+                                            onBack()
+                                        },
+                                        // OPTIONAL: Allow manual toggle of completed status on long click
+                                        onLongClick = {
+                                            viewModel.toggleCompleted(book.name)
+                                        }
+                                    )
                             )
                         }
                     }
