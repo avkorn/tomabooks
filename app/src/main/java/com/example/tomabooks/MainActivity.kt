@@ -120,6 +120,11 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+    override fun onNewIntent(intent: android.content.Intent) {
+        super.onNewIntent(intent)
+        // This is called when the widget is clicked and singleTask is active.
+        // Do NOT re-initialize the player here.
+    }
 }
 
 @Composable
