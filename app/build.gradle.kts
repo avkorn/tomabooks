@@ -12,7 +12,7 @@ android {
         applicationId = "com.example.tomabooks"
         minSdk = 35
         targetSdk = 36
-        versionCode = 5
+        versionCode = 6
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
