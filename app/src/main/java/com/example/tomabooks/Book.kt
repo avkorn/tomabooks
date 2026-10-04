@@ -6,5 +6,6 @@ data class Book(
     val name: String,
     val uri: Uri,
     val title: String? = null,
-    val author: String? = null
+    val author: String? = null,
+    val parentUri: Uri? = null
 )

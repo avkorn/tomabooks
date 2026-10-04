@@ -6,6 +6,7 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.media.MediaMetadataRetriever
 import android.net.Uri
+import android.provider.DocumentsContract
 import android.util.Log
 import androidx.core.net.toUri
 import androidx.documentfile.provider.DocumentFile
@@ -108,7 +109,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     )
                 } else if (playbackState == Player.STATE_ENDED) {
                     _uiState.value.currentBook?.let { book ->
-                        toggleCompleted(book.name, true)
+                        moveToDone(book)
                     }
                     playNextBook()
                 }
@@ -141,19 +142,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-//    fun playPreviousBook() {
-//        val books = _uiState.value.books
-//        val currentBook = _uiState.value.currentBook ?: return
-//        val currentIndex = books.indexOfFirst { it.uri.toString() == currentBook.uri.toString() }
-//
-//        if (currentIndex > 0) {
-//            val prevBook = books[currentIndex - 1]
-//            selectBook(prevBook)
-//        } else {
-//            seekTo(0L)
-//        }
-//    }
-
     fun rewind() {
         val newPos =
             (player.currentPosition - _uiState.value.rewindForwardSeconds * 1000).coerceAtLeast(0L)
@@ -173,6 +161,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun seekToEnd() {
+        _uiState.value.currentBook?.let { moveToDone(it) }
         playNextBook()
     }
 
@@ -265,6 +254,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         uri = obj.getString("uri").toUri(),
                         title = obj.optString("title").takeIf { it != "null" && it.isNotEmpty() },
                         author = obj.optString("author").takeIf { it != "null" && it.isNotEmpty() },
+                        parentUri = obj.optString("parentUri").takeIf { it.isNotEmpty() }?.toUri()
                     )
                 )
             }
@@ -296,12 +286,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             compareBy(
                 { it.author?.lowercase() ?: "яяяяяяя" },
                 { it.name.lowercase() }
-//                { it.title?.lowercase() ?: it.name.lowercase() }
             )
         )
     }
 
     private fun findM4bFilesRecursive(directory: DocumentFile, books: MutableList<Book>) {
+        if (directory.name == "_Done") return
         directory.listFiles().forEach { file ->
             if (file.isDirectory) {
                 findM4bFilesRecursive(file, books)
@@ -320,7 +310,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 } finally {
                     retriever.release()
                 }
-                books.add(Book(file.name ?: "Unknown", file.uri, title, author))
+                books.add(Book(file.name ?: "Unknown", file.uri, title, author, directory.uri))
             }
         }
     }
@@ -347,8 +337,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         if (deleteFromStorage) {
             viewModelScope.launch(Dispatchers.IO) {
                 try {
-                    // Use DocumentFile to resolve the URI.
-                    // This is more robust than calling DocumentsContract directly.
                     val file = DocumentFile.fromSingleUri(getApplication(), book.uri)
                     if (file != null && file.exists()) {
                         val deleted = file.delete()
@@ -374,6 +362,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 jsonObject.put("uri", it.uri.toString())
                 jsonObject.put("title", it.title ?: "")
                 jsonObject.put("author", it.author ?: "")
+                jsonObject.put("parentUri", it.parentUri?.toString() ?: "")
                 jsonArray.put(jsonObject)
             }
             repository.saveBooksList(jsonArray.toString())
@@ -453,7 +442,39 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         player.release()
     }
 
-    // Function to handle the saving
+    fun moveToDone(book: Book) {
+        val isCurrent = book.uri.toString() == _uiState.value.currentBook?.uri.toString()
+        if (isCurrent) {
+            player.stop()
+        }
+
+        viewModelScope.launch(Dispatchers.IO) {
+            val rootUri = _uiState.value.folderUri ?: return@launch
+            val root = DocumentFile.fromTreeUri(getApplication(), rootUri) ?: return@launch
+
+            var doneFolder = root.findFile("_Done")
+            if (doneFolder == null || !doneFolder.isDirectory) {
+                doneFolder = root.createDirectory("_Done")
+            }
+
+            if (doneFolder != null && book.parentUri != null) {
+                try {
+                    DocumentsContract.moveDocument(
+                        getApplication<Application>().contentResolver,
+                        book.uri,
+                        book.parentUri,
+                        doneFolder.uri
+                    )
+                    withContext(Dispatchers.Main) {
+                        reloadBooks()
+                    }
+                } catch (e: Exception) {
+                    Log.e("MainViewModel", "Failed to move book to _Done", e)
+                }
+            }
+        }
+    }
+
     fun toggleCompleted(fileName: String, forceMark: Boolean = false) {
         viewModelScope.launch {
             val currentSet = _uiState.value.completedBooks.toMutableSet()
