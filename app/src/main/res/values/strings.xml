@@ -11,8 +11,9 @@
     <string name="to_the_end">To the end</string>
     <string name="back">Back</string>
     <string name="remove_book">Remove Book</string>
-    <string name="remove_book_confirmation">Are you sure you want to remove \"%1$s\" from the list?</string>
-    <string name="delete_from_storage">Also delete file from the storage</string>
+    <string name="move_to_done_confirmation">Move \"%1$s\" to \"%2$s\"?</string>
+    <string name="delete_permanently_confirmation">Delete \"%1$s\" permanently from storage?</string>
+    <string name="delete_permanently_checkbox">Delete from storage permanently</string>
     <string name="confirm">Confirm</string>
     <string name="cancel">Cancel</string>
     <string name="scanning">Scanning…</string>

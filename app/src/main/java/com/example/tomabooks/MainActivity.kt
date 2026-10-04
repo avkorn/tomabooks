@@ -34,7 +34,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoStories
-import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Face
 import androidx.compose.material.icons.filled.FastForward
@@ -120,11 +119,6 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
-    override fun onNewIntent(intent: android.content.Intent) {
-        super.onNewIntent(intent)
-        // This is called when the widget is clicked and singleTask is active.
-        // Do NOT re-initialize the player here.
-    }
 }
 
 @Composable
@@ -168,7 +162,6 @@ fun StandardMainScreen(
                 .padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Artwork / Cover Image
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -179,7 +172,7 @@ fun StandardMainScreen(
             ) {
                 if (uiState.artwork != null) {
                     Image(
-                        bitmap = uiState.artwork!!.asImageBitmap(),
+                        bitmap = uiState.artwork.asImageBitmap(),
                         contentDescription = stringResource(R.string.no_book_selected),
                         modifier = Modifier.fillMaxSize(),
                         contentScale = ContentScale.Crop
@@ -196,7 +189,6 @@ fun StandardMainScreen(
 
             Spacer(modifier = Modifier.height(32.dp))
 
-            // Book Title (Metadata)
             val titleStyle = MaterialTheme.typography.headlineMedium
             val displayName = uiState.bookTitle
                 ?: if (uiState.currentBook != null) stringResource(R.string.loading_metadata) else stringResource(
@@ -204,28 +196,23 @@ fun StandardMainScreen(
                 )
             Text(
                 text = displayName,
-//                style = MaterialTheme.typography.headlineMedium,
                 style = titleStyle.copy(
                     fontSize = minOf((titleStyle.fontSize * fontScale).value, 20f).sp,
                     fontWeight = FontWeight.Bold,
                     platformStyle = PlatformTextStyle(includeFontPadding = false),
                     lineHeight = minOf((titleStyle.fontSize * fontScale).value, 20f).sp * 0.9f,
-
-                    ),
+                ),
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
                 textAlign = TextAlign.Center
             )
 
-            // Author (Metadata)
             if (!uiState.author.isNullOrEmpty()) {
                 val authorStyle = MaterialTheme.typography.headlineSmall
                 Text(
                     text = uiState.author,
-                    //style = MaterialTheme.typography.titleMedium,
                     style = authorStyle.copy(
                         fontSize = minOf((authorStyle.fontSize * fontScale).value, 20f).sp
-
                     ),
                     color = MaterialTheme.colorScheme.secondary,
                     maxLines = 1,
@@ -237,7 +224,6 @@ fun StandardMainScreen(
 
             Spacer(modifier = Modifier.weight(1f))
 
-            // Progress Section
             Column(modifier = Modifier.fillMaxWidth()) {
                 Slider(
                     value = uiState.currentPosition.longToFloat(),
@@ -262,13 +248,11 @@ fun StandardMainScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // Playback Controls
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceEvenly,
                 verticalAlignment = Alignment.Top
             ) {
-                // To the start
                 Box(modifier = Modifier.height(56.dp), contentAlignment = Alignment.Center) {
                     IconButton(onClick = { viewModel.seekToStart() }) {
                         Icon(
@@ -279,7 +263,6 @@ fun StandardMainScreen(
                     }
                 }
 
-                // Rewind N seconds
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Box(modifier = Modifier.height(56.dp), contentAlignment = Alignment.Center) {
                         IconButton(onClick = { viewModel.rewind() }) {
@@ -297,7 +280,6 @@ fun StandardMainScreen(
                     )
                 }
 
-                // Play/Pause Control
                 Button(
                     onClick = { viewModel.playPause() },
                     modifier = Modifier.size(width = 72.dp, height = 56.dp),
@@ -313,7 +295,6 @@ fun StandardMainScreen(
                     )
                 }
 
-                // Forward N seconds
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Box(modifier = Modifier.height(56.dp), contentAlignment = Alignment.Center) {
                         IconButton(onClick = { viewModel.forward() }) {
@@ -331,7 +312,6 @@ fun StandardMainScreen(
                     )
                 }
 
-                // To the end (next book)
                 Box(modifier = Modifier.height(56.dp), contentAlignment = Alignment.Center) {
                     IconButton(onClick = { viewModel.seekToEnd() }) {
                         Icon(
@@ -358,9 +338,8 @@ fun BlindMainScreen(
     val fontScale = LocalDensity.current.fontScale
     var lastClickTime by remember { mutableLongStateOf(0L) }
     var clickCount by remember { mutableIntStateOf(0) }
-    val tripleClickThreshold = 500L // Time window (ms) to complete the next click
+    val tripleClickThreshold = 500L
 
-    val haptic = LocalHapticFeedback.current // To provide physical feedback
     Scaffold(
         topBar = {
             TopAppBar(
@@ -370,45 +349,22 @@ fun BlindMainScreen(
                         modifier = Modifier
                             .minimumInteractiveComponentSize()
                             .size(80.dp)
-//                            .combinedClickable(
-//                                onClick = { /* Ignore single click */ },
-//                                onDoubleClick = onNavigateToSettings
-//                            ),
                             .pointerInput(Unit) {
-//                                awaitPointerEventScope {
-//                                    while (true) {
-//                                        val event = awaitPointerEvent()
-//                                        // Only trigger if exactly 2 fingers are touching the settings icon
-//                                        if (event.changes.size == 2) {
-//                                            // Optional: Add haptic feedback so they know it worked
-//                                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-//                                            onNavigateToSettings()
-//                                        }
-//                                    }
-//                                }
                                 detectTapGestures(
-                                    // 1. Triple click remains as a secondary shortcut
                                     onTap = {
-                                        // You can keep your triple click logic here
-                                        // or leave it empty to force the Long Press
                                         val currentTime = System.currentTimeMillis()
                                         if (currentTime - lastClickTime < tripleClickThreshold) {
                                             clickCount++
                                         } else {
-                                            clickCount = 1 // Reset if too much time passed
+                                            clickCount = 1
                                         }
                                         lastClickTime = currentTime
 
                                         if (clickCount >= 4) {
                                             onNavigateToSettings()
-                                            clickCount = 0 // Reset after success
+                                            clickCount = 0
                                         }
                                     },
-//                                    // 2. The Sophisticated way: Long Press with Haptics
-//                                    onLongPress = {
-//                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-//                                        onNavigateToSettings()
-//                                    }
                                 )
                             },
                         contentAlignment = Alignment.Center
@@ -430,12 +386,10 @@ fun BlindMainScreen(
                 .padding(start = 24.dp, end = 24.dp, top = 0.dp, bottom = 24.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Author and Book Name in large text
             val authorStyle = MaterialTheme.typography.headlineSmall
             val titleStyle = MaterialTheme.typography.headlineMedium
             Text(
                 text = uiState.author ?: "",
-//                style = MaterialTheme.typography.headlineSmall,
                 style = authorStyle.copy(
                     fontSize = minOf((authorStyle.fontSize * fontScale).value, 20f).sp
                 ),
@@ -449,7 +403,6 @@ fun BlindMainScreen(
                     ?: if (uiState.currentBook != null) stringResource(R.string.loading_metadata) else stringResource(
                         R.string.no_book_selected
                     ),
-//                style = MaterialTheme.typography.headlineMedium,
                 style = titleStyle.copy(
                     fontSize = minOf((titleStyle.fontSize * fontScale).value, 20f).sp,
                     fontWeight = FontWeight.Bold,
@@ -467,7 +420,6 @@ fun BlindMainScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Read-only Progress Section
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -496,13 +448,12 @@ fun BlindMainScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Giant Play/Pause Button - Fills the rest of the screen
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f)
                     .clip(RoundedCornerShape(32.dp))
-                    .background(if (uiState.isPlaying) Color.Red else Color.Green) // Pure Red/Green
+                    .background(if (uiState.isPlaying) Color.Red else Color.Green)
                     .combinedClickable(
                         onClick = { viewModel.playPause() },
                         onLongClick = { viewModel.playPause() }
@@ -553,7 +504,7 @@ fun SettingsScreen(viewModel: MainViewModel, onBack: () -> Unit) {
 
     var showDeleteDialog by remember { mutableStateOf(false) }
     var bookToDelete by remember { mutableStateOf<Book?>(null) }
-    var deleteFromStorage by remember { mutableStateOf(false) }
+    var deletePermanently by remember { mutableStateOf(false) }
 
     if (showDeleteDialog && bookToDelete != null) {
         AlertDialog(
@@ -564,25 +515,26 @@ fun SettingsScreen(viewModel: MainViewModel, onBack: () -> Unit) {
             title = { Text(stringResource(R.string.remove_book)) },
             text = {
                 Column {
-                    Text(
-                        stringResource(
-                            R.string.remove_book_confirmation,
-                            bookToDelete?.title ?: bookToDelete?.name ?: ""
-                        )
-                    )
+                    val message = if (deletePermanently) {
+                        stringResource(R.string.delete_permanently_confirmation, bookToDelete?.title ?: bookToDelete?.name ?: "")
+                    } else {
+                        val destPath = (listOf("_Done") + bookToDelete!!.relativePath).joinToString("/")
+                        stringResource(R.string.move_to_done_confirmation, bookToDelete?.title ?: bookToDelete?.name ?: "", destPath)
+                    }
+                    Text(message)
                     Spacer(modifier = Modifier.height(16.dp))
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier.clickable {
-                            deleteFromStorage = !deleteFromStorage
+                            deletePermanently = !deletePermanently
                         }
                     ) {
                         Checkbox(
-                            checked = deleteFromStorage,
-                            onCheckedChange = { deleteFromStorage = it }
+                            checked = deletePermanently,
+                            onCheckedChange = { deletePermanently = it }
                         )
                         Text(
-                            stringResource(R.string.delete_from_storage),
+                            stringResource(R.string.delete_permanently_checkbox),
                             style = MaterialTheme.typography.bodyMedium
                         )
                     }
@@ -590,10 +542,10 @@ fun SettingsScreen(viewModel: MainViewModel, onBack: () -> Unit) {
             },
             confirmButton = {
                 TextButton(onClick = {
-                    bookToDelete?.let { viewModel.removeBook(it, deleteFromStorage) }
+                    bookToDelete?.let { viewModel.removeBook(it, deletePermanently) }
                     showDeleteDialog = false
                     bookToDelete = null
-                    deleteFromStorage = false
+                    deletePermanently = false
                 }) {
                     Text(
                         stringResource(R.string.confirm),
@@ -680,10 +632,6 @@ fun SettingsScreen(viewModel: MainViewModel, onBack: () -> Unit) {
 
                 HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
 
-                // Playback Settings
-//            Text(stringResource(R.string.playback_settings), style = MaterialTheme.typography.titleMedium)
-//            Spacer(modifier = Modifier.height(8.dp))
-
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
@@ -726,16 +674,14 @@ fun SettingsScreen(viewModel: MainViewModel, onBack: () -> Unit) {
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Blind Mode Switcher
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
-//                horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Column(
                         modifier = Modifier
-                            .weight(1f) // This forces the column to shrink/wrap instead of pushing the Switch
-                            .padding(end = 16.dp) // Gap between the text and the switch
+                            .weight(1f)
+                            .padding(end = 16.dp)
                     ) {
                         Text(
                             stringResource(R.string.blind_mode),
@@ -790,8 +736,6 @@ fun SettingsScreen(viewModel: MainViewModel, onBack: () -> Unit) {
                         items(uiState.books) { book ->
                             val isSelected =
                                 book.uri.toString() == uiState.currentBook?.uri.toString()
-                            // Check if this book is in the completed list
-                            val isCompleted = uiState.completedBooks.contains(book.name)
 
                             ListItem(
                                 headlineContent = {
@@ -803,27 +747,12 @@ fun SettingsScreen(viewModel: MainViewModel, onBack: () -> Unit) {
                                     )
                                 },
                                 supportingContent = {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        // ADDED: Show checkmark if completed
-                                        if (isCompleted) {
-                                            Icon(
-                                                imageVector = Icons.Default.CheckCircle,
-                                                contentDescription = null,
-                                                tint = Color(0xFF4CAF50), // Standard Green
-                                                modifier = Modifier
-                                                    .size(16.dp)
-                                                    .padding(end = 4.dp)
-                                            )
-                                        }
-                                        Text(
-                                            text = book.title ?: book.name,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis,
-                                            style = MaterialTheme.typography.bodySmall,
-                                            // Optional: Strike through or dim the text if completed
-                                            color = if (isCompleted) MaterialTheme.colorScheme.outline else Color.Unspecified
-                                        )
-                                    }
+                                    Text(
+                                        text = book.title ?: book.name,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        style = MaterialTheme.typography.bodySmall
+                                    )
                                 },
                                 leadingContent = {
                                     Icon(
@@ -853,9 +782,8 @@ fun SettingsScreen(viewModel: MainViewModel, onBack: () -> Unit) {
                                             viewModel.selectBook(book)
                                             onBack()
                                         },
-                                        // OPTIONAL: Allow manual toggle of completed status on long click
                                         onLongClick = {
-                                            viewModel.toggleCompleted(book.name)
+                                            viewModel.moveToDone(book)
                                         }
                                     )
                             )

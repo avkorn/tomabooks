@@ -7,5 +7,6 @@ data class Book(
     val uri: Uri,
     val title: String? = null,
     val author: String? = null,
-    val parentUri: Uri? = null
+    val parentUri: Uri? = null,
+    val relativePath: List<String> = emptyList()
 )

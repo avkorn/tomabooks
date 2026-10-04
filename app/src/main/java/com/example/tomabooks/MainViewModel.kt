@@ -248,13 +248,21 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val books = mutableListOf<Book>()
             for (i in 0 until jsonArray.length()) {
                 val obj = jsonArray.getJSONObject(i)
+                val pathArray = obj.optJSONArray("relativePath")
+                val relativePath = mutableListOf<String>()
+                if (pathArray != null) {
+                    for (j in 0 until pathArray.length()) {
+                        relativePath.add(pathArray.getString(j))
+                    }
+                }
                 books.add(
                     Book(
                         name = obj.getString("name"),
                         uri = obj.getString("uri").toUri(),
                         title = obj.optString("title").takeIf { it != "null" && it.isNotEmpty() },
                         author = obj.optString("author").takeIf { it != "null" && it.isNotEmpty() },
-                        parentUri = obj.optString("parentUri").takeIf { it.isNotEmpty() }?.toUri()
+                        parentUri = obj.optString("parentUri").takeIf { it.isNotEmpty() }?.toUri(),
+                        relativePath = relativePath
                     )
                 )
             }
@@ -272,7 +280,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val root = DocumentFile.fromTreeUri(getApplication(), uri)
             val list = mutableListOf<Book>()
             if (root != null) {
-                findM4bFilesRecursive(root, list)
+                findM4bFilesRecursive(root, list, emptyList())
             }
             sortBooks(list)
         }
@@ -290,11 +298,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         )
     }
 
-    private fun findM4bFilesRecursive(directory: DocumentFile, books: MutableList<Book>) {
+    private fun findM4bFilesRecursive(directory: DocumentFile, books: MutableList<Book>, currentPath: List<String>) {
         if (directory.name == "_Done") return
         directory.listFiles().forEach { file ->
             if (file.isDirectory) {
-                findM4bFilesRecursive(file, books)
+                findM4bFilesRecursive(file, books, currentPath + (file.name ?: "Unknown"))
             } else if (file.name?.endsWith(".m4b", ignoreCase = true) == true) {
                 val retriever = MediaMetadataRetriever()
                 var title: String? = null
@@ -310,37 +318,28 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 } finally {
                     retriever.release()
                 }
-                books.add(Book(file.name ?: "Unknown", file.uri, title, author, directory.uri))
+                books.add(Book(file.name ?: "Unknown", file.uri, title, author, directory.uri, currentPath))
             }
         }
     }
 
-    fun removeBook(book: Book, deleteFromStorage: Boolean) {
+    fun removeBook(book: Book, deletePermanently: Boolean) {
         val isCurrent = book.uri.toString() == _uiState.value.currentBook?.uri.toString()
         if (isCurrent) {
             player.stop()
         }
 
-        val newList = _uiState.value.books.filter { it.uri.toString() != book.uri.toString() }
-        _uiState.value = _uiState.value.copy(
-            books = newList,
-            currentBook = if (isCurrent) null else _uiState.value.currentBook,
-            artwork = if (isCurrent) null else _uiState.value.artwork,
-            bookTitle = if (isCurrent) null else _uiState.value.bookTitle,
-            author = if (isCurrent) null else _uiState.value.author,
-            isPlaying = if (isCurrent) false else _uiState.value.isPlaying,
-            currentPosition = if (isCurrent) 0L else _uiState.value.currentPosition,
-            duration = if (isCurrent) 0L else _uiState.value.duration
-        )
-        saveBooks(newList)
-
-        if (deleteFromStorage) {
+        if (deletePermanently) {
             viewModelScope.launch(Dispatchers.IO) {
                 try {
                     val file = DocumentFile.fromSingleUri(getApplication(), book.uri)
                     if (file != null && file.exists()) {
                         val deleted = file.delete()
-                        if (!deleted) {
+                        if (deleted) {
+                            withContext(Dispatchers.Main) {
+                                reloadBooks()
+                            }
+                        } else {
                             Log.w("MainViewModel", "Failed to delete file: ${book.uri}")
                         }
                     } else {
@@ -350,6 +349,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     Log.e("MainViewModel", "Error deleting file", e)
                 }
             }
+        } else {
+            moveToDone(book)
         }
     }
 
@@ -363,6 +364,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 jsonObject.put("title", it.title ?: "")
                 jsonObject.put("author", it.author ?: "")
                 jsonObject.put("parentUri", it.parentUri?.toString() ?: "")
+                val pathArray = JSONArray()
+                it.relativePath.forEach { folder -> pathArray.put(folder) }
+                jsonObject.put("relativePath", pathArray)
                 jsonArray.put(jsonObject)
             }
             repository.saveBooksList(jsonArray.toString())
@@ -452,24 +456,32 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val rootUri = _uiState.value.folderUri ?: return@launch
             val root = DocumentFile.fromTreeUri(getApplication(), rootUri) ?: return@launch
 
-            var doneFolder = root.findFile("_Done")
-            if (doneFolder == null || !doneFolder.isDirectory) {
-                doneFolder = root.createDirectory("_Done")
+            val doneRoot = root.findFile("_Done")?.takeIf { it.isDirectory }
+                ?: root.createDirectory("_Done")
+            if (doneRoot == null) return@launch
+
+            // Recreate subfolder structure inside _Done
+            val targetFolder = book.relativePath.fold(doneRoot) { current, folderName ->
+                var next = current.findFile(folderName)
+                if (next == null || !next.isDirectory) {
+                    next = current.createDirectory(folderName)
+                }
+                next ?: current
             }
 
-            if (doneFolder != null && book.parentUri != null) {
+            if (book.parentUri != null) {
                 try {
                     DocumentsContract.moveDocument(
                         getApplication<Application>().contentResolver,
                         book.uri,
                         book.parentUri,
-                        doneFolder.uri
+                        targetFolder.uri
                     )
                     withContext(Dispatchers.Main) {
                         reloadBooks()
                     }
                 } catch (e: Exception) {
-                    Log.e("MainViewModel", "Failed to move book to _Done", e)
+                    Log.e("MainViewModel", "Failed to move book to _Done structure", e)
                 }
             }
         }
