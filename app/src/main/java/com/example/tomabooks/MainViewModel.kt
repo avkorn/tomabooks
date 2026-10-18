@@ -37,6 +37,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val uiState: StateFlow<UiState> = _uiState.asStateFlow()
 
     private var positionUpdateJob: Job? = null
+    private var playbackStartTime: Long? = null
+    private val SLEEP_TIMER_DURATION = 60 * 60 * 1000L // 1 hour
 
 
     data class UiState(
@@ -80,8 +82,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             override fun onIsPlayingChanged(isPlaying: Boolean) {
                 _uiState.value = _uiState.value.copy(isPlaying = isPlaying)
                 if (isPlaying) {
+                    playbackStartTime = System.currentTimeMillis()
                     startPositionUpdate()
                 } else {
+                    playbackStartTime = null
                     stopPositionUpdate()
                     savePlaybackState()
                 }
@@ -109,9 +113,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     )
                 } else if (playbackState == Player.STATE_ENDED) {
                     _uiState.value.currentBook?.let { book ->
+                        playNextBook(play = false)
                         moveToDone(book)
                     }
-                    playNextBook()
                 }
             }
         })
@@ -124,7 +128,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    private fun playNextBook() {
+    private fun playNextBook(play: Boolean = true) {
         val books = _uiState.value.books
         val currentBook = _uiState.value.currentBook ?: return
         val currentIndex = books.indexOfFirst { it.uri.toString() == currentBook.uri.toString() }
@@ -137,7 +141,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
             if (currentIndex < books.size - 1) {
                 val nextBook = books[currentIndex + 1]
-                selectBook(nextBook)
+                selectBook(nextBook, play = play)
             }
         }
     }
@@ -161,8 +165,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun seekToEnd() {
-        _uiState.value.currentBook?.let { moveToDone(it) }
-        playNextBook()
+        _uiState.value.currentBook?.let { book ->
+            playNextBook(play = false)
+            moveToDone(book)
+        }
     }
 
     fun setRewindForwardSeconds(seconds: Int) {
@@ -200,6 +206,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         positionUpdateJob?.cancel()
         positionUpdateJob = viewModelScope.launch {
             while (isActive) {
+                val startTime = playbackStartTime
+                if (startTime != null) {
+                    val elapsed = System.currentTimeMillis() - startTime
+                    if (elapsed >= SLEEP_TIMER_DURATION) {
+                        withContext(Dispatchers.Main) {
+                            player.pause()
+                        }
+                    }
+                }
+
                 val pos = player.currentPosition
                 _uiState.value = _uiState.value.copy(currentPosition = pos)
                 if (pos / 1000 % 10 == 0L) {
@@ -337,13 +353,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         val deleted = file.delete()
                         if (deleted) {
                             withContext(Dispatchers.Main) {
-                                reloadBooks()
+                                removeBookFromList(book)
                             }
                         } else {
                             Log.w("MainViewModel", "Failed to delete file: ${book.uri}")
                         }
                     } else {
                         Log.w("MainViewModel", "File not found or already deleted: ${book.uri}")
+                        withContext(Dispatchers.Main) {
+                            removeBookFromList(book)
+                        }
                     }
                 } catch (e: Exception) {
                     Log.e("MainViewModel", "Error deleting file", e)
@@ -351,6 +370,23 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             }
         } else {
             moveToDone(book)
+        }
+    }
+
+    private fun removeBookFromList(book: Book) {
+        val newList = _uiState.value.books.filter { it.uri.toString() != book.uri.toString() }
+        _uiState.value = _uiState.value.copy(books = newList)
+        saveBooks(newList)
+
+        if (_uiState.value.currentBook?.uri?.toString() == book.uri.toString()) {
+            _uiState.value = _uiState.value.copy(
+                currentBook = null,
+                artwork = null,
+                bookTitle = null,
+                author = null,
+                currentPosition = 0L,
+                duration = 0L
+            )
         }
     }
 
@@ -387,7 +423,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun selectBook(book: Book) {
+    fun selectBook(book: Book, play: Boolean = true) {
         _uiState.value = _uiState.value.copy(
             currentBook = book,
             artwork = null,
@@ -401,7 +437,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
         player.setMediaItem(MediaItem.fromUri(book.uri))
         player.prepare()
-        player.play()
+        if (play) {
+            player.play()
+        } else {
+            player.pause()
+        }
         savePlaybackState()
     }
 
@@ -478,7 +518,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         targetFolder.uri
                     )
                     withContext(Dispatchers.Main) {
-                        reloadBooks()
+                        removeBookFromList(book)
                     }
                 } catch (e: Exception) {
                     Log.e("MainViewModel", "Failed to move book to _Done structure", e)
